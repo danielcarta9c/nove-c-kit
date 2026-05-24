@@ -1,6 +1,6 @@
 # Changelog
 
-## Non rilasciato (post-v1)
+## v1.1 — 2026-05-24
 
 - `templates/` — skeleton dei doc vivi da copiare nel nuovo progetto
   (`PROJECT_STATE.md` con sezione "Ambienti live", formato ADR).
