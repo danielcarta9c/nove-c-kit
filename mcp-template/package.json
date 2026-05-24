@@ -1,0 +1,16 @@
+{
+  "name": "<nome-progetto>-mcp",
+  "version": "0.1.0",
+  "description": "MCP server custom HTTP via Cloudflare Workers + OAuth",
+  "private": true,
+  "type": "module",
+  "main": "worker.mjs",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "stdio": "node index.mjs"
+  },
+  "dependencies": {
+    "@cloudflare/workers-oauth-provider": "^0.7.0"
+  }
+}

@@ -1,0 +1,21 @@
+# wrangler.toml — Configurazione Cloudflare Workers per <nome-progetto> MCP.
+# Lanciato col comando: wrangler deploy (dalla cartella mcp-server/).
+# I secrets (SUPABASE_URL, SUPABASE_SERVICE_KEY, MCP_AUTH_TOKEN) NON vanno qui:
+# vanno settati con `wrangler secret put <NAME>`.
+
+name = "<nome-progetto>-mcp"
+main = "worker.mjs"
+compatibility_date = "2025-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Storage per OAuth provider (client registrati, access/refresh tokens, grants).
+# Crea il namespace una sola volta con:
+#   npx wrangler kv namespace create OAUTH_KV
+# Wrangler aggiorna automaticamente questo file con l'id ricevuto. Se non lo fa,
+# copia manualmente l'id qui sotto.
+[[kv_namespaces]]
+binding = "OAUTH_KV"
+id = "PLACEHOLDER_KV_NAMESPACE_ID"
+
+[observability]
+enabled = true
