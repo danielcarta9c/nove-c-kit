@@ -1,15 +1,12 @@
-# .dev.vars.example — copia in `.dev.vars` (gitignored) e compila per `wrangler dev`.
-# Sono gli stessi valori che in produzione setti con `wrangler secret put <NAME>`.
-# Il `.dev.vars` reale NON va committato: contiene la Secret key.
+# Copia questo file in `.dev.vars` (stessa cartella) per testare il Worker in
+# locale con `npx wrangler dev`. `.dev.vars` è git-ignored; questo `.example` no.
+# In produzione NON usare questo file: setta i secret con `wrangler secret put <NAME>`.
 
-# Project URL Supabase NUDO, senza /rest/v1/ (vedi PLAYBOOK §3 — gotcha path doppio).
-SUPABASE_URL=https://<tuo-project>.supabase.co
-
-# Supabase Secret key (sb_secret_...). RLS-bypass, server-only (vedi PLAYBOOK §2).
-SUPABASE_SERVICE_KEY=sb_secret_xxxxxxxxxxxxxxxxxxxxxxxx
-
-# Consent password che l'utente incolla nel form /authorize. Genera 32 char random.
-MCP_AUTH_TOKEN=sostituisci-con-32-char-random
-
-# Opzionale: workspace id, se diverso dal default multi-tenant.
-# PROJECT_WORKSPACE_ID=00000000-0000-0000-0000-000000000001
+# Project URL Supabase (base, SENZA /rest/v1). Obbligatorio.
+SUPABASE_URL="https://<tuo-progetto>.supabase.co"
+# Secret key Supabase (RLS-bypass, server-only). Obbligatorio — MAI committare il valore reale.
+SUPABASE_SERVICE_KEY="<la-tua-secret-key>"
+# Token di consenso che l'utente incolla al primo login OAuth. Obbligatorio (es. `openssl rand -hex 24`).
+MCP_AUTH_TOKEN="<token-random-32-caratteri>"
+# UUID del workspace/tenant iniettato nel grant OAuth. Opzionale (single-tenant). Solo UUID fittizio.
+# PROJECT_WORKSPACE_ID="00000000-0000-0000-0000-000000000001"

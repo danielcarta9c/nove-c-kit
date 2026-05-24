@@ -6,6 +6,9 @@
   (`PROJECT_STATE.md` con sezione "Ambienti live", formato ADR).
 - `mcp-template/.dev.vars.example` — template env per `wrangler dev`
   (era citato in doc ma il file mancava).
+- `mcp-template/claude_desktop_config.example.json` — config stdio per
+  agganciare `index.mjs` a Claude Desktop (completa il path stdio già
+  presente nel template).
 - Doc: chiarito che il `PLAYBOOK.md` vive nel kit (non nello Scadenzario),
   aggiunto entry-point di bootstrap per Claude nel README, wiring del
   checklist giorno 1-3 di `AGENT_BOOTSTRAP.md` ai file del kit, sezione

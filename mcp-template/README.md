@@ -26,6 +26,7 @@ Claude.ai  ──HTTPS──>  Cloudflare Worker  ──HTTPS──>  Supabase (
 | `package.json` | Deps NPM | `name` + `description` |
 | `setup-mcp.ps1` | Helper PowerShell (Windows) per setup KV + deploy | Niente |
 | `.dev.vars.example` | Template env per `wrangler dev` | Copia in `.dev.vars` (gitignored) |
+| `claude_desktop_config.example.json` | Config stdio da incollare in Claude Desktop (dev locale) | Path assoluto a `index.mjs` + env |
 
 ## Setup (Windows PowerShell)
 
@@ -96,6 +97,21 @@ curl -X POST http://localhost:8787/mcp \
 4. Salva, premi "Connect"
 5. Pagina di consenso → incolla `MCP_AUTH_TOKEN`
 6. "Autorizza" → connessione attiva
+
+## Uso stdio locale (Claude Desktop, opzionale)
+
+Per il prodotto usa l'HTTP (sopra). Lo stdio serve solo per debug rapido da
+Claude Desktop, senza deploy. `index.mjs` è già il runner stdio (`npm run stdio`).
+Per agganciarlo a Claude Desktop, copia il contenuto di
+`claude_desktop_config.example.json` nel file di config di Claude Desktop:
+
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+
+Poi sistema il **path assoluto** a `index.mjs` e compila il blocco `env`.
+Lo stdio NON usa `MCP_AUTH_TOKEN` (è solo per l'OAuth del Worker HTTP): bastano
+`SUPABASE_URL`, `SUPABASE_SERVICE_KEY` e, se serve, `PROJECT_WORKSPACE_ID`.
+Riavvia Claude Desktop dopo aver salvato.
 
 ## Gotcha (vissuti in produzione, non rifare)
 
