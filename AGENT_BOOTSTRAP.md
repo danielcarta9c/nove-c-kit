@@ -24,7 +24,7 @@ il **come**.
 In quest'ordine, **una volta sola** a inizio progetto:
 
 1. **`PLAYBOOK.md`** — accanto a questo file, nel kit `nove-c-kit` (online:
-   `https://github.com/danielcarta9c/nove-c-kit/blob/v1/PLAYBOOK.md`)
+   `https://github.com/danielcarta9c/nove-c-kit/blob/main/PLAYBOOK.md`)
    → tutto lo stack, i pattern, gli snippet riusabili, la metodologia PM.
    È il documento "Costituzione" di Nove C. Leggilo per intero.
 

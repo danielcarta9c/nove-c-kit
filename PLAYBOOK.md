@@ -230,7 +230,7 @@ async function handleConsent(req, env) {
 
 Per un nuovo progetto NON ripartire dal codice Scadenzario (è pieno di tool
 dominio). Clona invece il template sterilizzato dal kit pubblico:
-[`nove-c-kit/mcp-template/`](https://github.com/danielcarta9c/nove-c-kit/tree/v1/mcp-template).
+[`nove-c-kit/mcp-template/`](https://github.com/danielcarta9c/nove-c-kit/tree/main/mcp-template).
 Contiene `worker.mjs` + `mcp-dispatcher.mjs` + factory client/tools `.example`
 + `wrangler.toml` + `setup-mcp.ps1`, tutto parametrizzato con `<nome-progetto>`
 e con README operativo + lista gotcha.
@@ -1234,12 +1234,12 @@ Worker Cloudflare · Repo GitHub) con tutti i fatti operativi.
 > in versione **parametrizzata e dominio-free**, nel kit pubblico
 > [`danielcarta9c/nove-c-kit`](https://github.com/danielcarta9c/nove-c-kit).
 > Un Claude di un altro progetto può recuperarli senza accesso a questo repo
-> via `raw.githubusercontent.com/danielcarta9c/nove-c-kit/v1/<path>`.
+> via `raw.githubusercontent.com/danielcarta9c/nove-c-kit/main/<path>`.
 > Gli snippet qui sotto restano la versione "caso di studio" (con i nomi reali
 > Scadenzario, leggibile offline); il kit è la versione "pronta da clonare".
 > **Copia, non importare** (vedi `nove-c-kit/README.md`).
 >
-> | Sezione | File nel kit (`v1`) |
+> | Sezione | File nel kit |
 > |---------|---------------------|
 > | §25 markDirty/saveNow | `snippets/markDirty-saveNow.mjs` |
 > | §26 handleRemoteChange | `snippets/handleRemoteChange.mjs` |
