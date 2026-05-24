@@ -1,0 +1,12 @@
+# Copia questo file in `.dev.vars` (stessa cartella) per testare il Worker in
+# locale con `npx wrangler dev`. `.dev.vars` è git-ignored; questo `.example` no.
+# In produzione NON usare questo file: setta i secret con `wrangler secret put <NAME>`.
+
+# Project URL Supabase (base, SENZA /rest/v1). Obbligatorio.
+SUPABASE_URL="https://<tuo-progetto>.supabase.co"
+# Secret key Supabase (RLS-bypass, server-only). Obbligatorio — MAI committare il valore reale.
+SUPABASE_SERVICE_KEY="<la-tua-secret-key>"
+# Token di consenso che l'utente incolla al primo login OAuth. Obbligatorio (es. `openssl rand -hex 24`).
+MCP_AUTH_TOKEN="<token-random-32-caratteri>"
+# UUID del workspace/tenant iniettato nel grant OAuth. Opzionale (single-tenant). Solo UUID fittizio.
+# PROJECT_WORKSPACE_ID="00000000-0000-0000-0000-000000000001"

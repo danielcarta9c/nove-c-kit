@@ -592,6 +592,9 @@ Non rifare questi, ognuno ci è costato almeno mezza giornata:
 
 ## 11b. Design language brand-aware
 
+> Scope: *quali* colori e font usare (estrazione dal brand del cliente). Per il
+> *processo* — mockup statici approvati prima di scrivere CSS — vedi §33.
+
 **Il vincolo che cambia tutto**: se il cliente ha un sito web, ha *già* un'identità
 visiva. Inventare una palette generica (Tailwind teal, Material blue) sopra
 la sua è un autogol — il cliente non riconoscerà il suo brand nella sua
@@ -801,13 +804,13 @@ primo**. Apri i documenti in quest'ordine:
 ### Giorno 1 — Inquadramento
 
 1. Crea il repo (privato su GitHub, `danielcarta9c/<nome-prodotto>`).
-2. Copia il **`docs/AGENT_BOOTSTRAP.md`** dallo Scadenzario nel nuovo repo
+2. Copia il **`AGENT_BOOTSTRAP.md`** dal kit `nove-c-kit` nel nuovo repo
    come `CLAUDE.md`. È la lettera al Claude della prima sessione: gli dice
    chi sei, come lavori, cosa leggere, quali domande farti.
 3. Crea un `README.md` di **mezza pagina**: nome, cosa fa in 2 frasi,
    stato (alpha/MVP/beta), link a PRD su SharePoint se esiste.
-4. Crea `PROJECT_STATE.md` con tre sezioni vuote: **Now** (cosa sto facendo
-   adesso), **Next** (backlog ordinato), **Done log** (commit + descrizione).
+4. Crea `PROJECT_STATE.md` copiando `nove-c-kit/templates/PROJECT_STATE.md`:
+   sezioni **Ambienti live**, **Now**, **Next**, **Done log**.
 5. **Conversazione di scoperta con Claude**: gli racconti cosa fa il prodotto,
    chi è l'utente, qual è il problema centrale. Claude prende appunti in un
    nuovo file `PRD_<nome>.md` (oppure su SharePoint se preferisci).
@@ -1839,6 +1842,9 @@ process.exit(c.summary("test 01"));
 ---
 
 ## 33. Design discovery prima di codice
+
+> Scope: il *processo* di discovery (mockup statici approvati prima di toccare
+> il CSS dell'app live). Per *quali* colori e font scegliere, vedi §11b.
 
 **Il problema che risolve**: quando il PM dice "voglio l'app più bella",
 la tentazione di Claude è iniziare a refactorare CSS, aggiungere dark mode,

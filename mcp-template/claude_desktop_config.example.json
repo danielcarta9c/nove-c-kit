@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "<nome-progetto>": {
+      "command": "node",
+      "args": ["C:\\percorso\\assoluto\\al\\mcp-server\\index.mjs"],
+      "env": {
+        "SUPABASE_URL": "https://<tuo-progetto>.supabase.co",
+        "SUPABASE_SERVICE_KEY": "<la-tua-secret-key>",
+        "PROJECT_WORKSPACE_ID": "00000000-0000-0000-0000-000000000001"
+      }
+    }
+  }
+}

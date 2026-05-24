@@ -4,18 +4,38 @@ Starter kit pubblico Nove C. Pattern e snippet **trasversali**,
 riusabili in qualsiasi web-app o SaaS leggero costruito con la metodologia
 Nove C (vanilla JS + Supabase + Cloudflare Workers).
 
-È il complemento del [`PLAYBOOK.md`](https://github.com/danielcarta9c/ScadenzarioCommercialisti/blob/main/docs/PLAYBOOK.md)
-(che vive nel repo Scadenzario, perché il playbook racconta *come si lavora*
-e il primo prodotto reale ne è il caso di studio).
+Nasce come "figlio" del primo prodotto reale Nove C (lo Scadenzario): metodo,
+architetture e pezzi di codice buoni maturati lì — più le cose nuove che
+impariamo strada facendo — sono stati estratti qui, su un repo pubblico, per
+partire da un setup di metodo già pronto in qualsiasi nuovo progetto. Il cuore
+è il [`PLAYBOOK.md`](PLAYBOOK.md), il documento "Costituzione" della metodologia
+Nove C; lo Scadenzario resta il caso di studio in produzione.
 
 ## Cosa c'è dentro
 
 ```
-mcp-template/   Scheletro Worker MCP custom (OAuth 2.1 + DCR) per Claude
-                web/mobile/desktop. Pronto da clonare in un nuovo progetto.
-snippets/       Frammenti di codice testati in produzione (sync, audit log,
-                drag&drop touch, RLS multi-tenant, test harness Playwright).
+PLAYBOOK.md         Metodologia, stack di default, pattern Nove C. Il documento
+                    "Costituzione": leggilo per intero a inizio progetto.
+AGENT_BOOTSTRAP.md  Lettera al Claude della prima sessione. Da copiare come
+                    CLAUDE.md nel nuovo progetto e personalizzare.
+REGOLE.md           Regole di igiene di QUESTO repo pubblico (mai secret, mai
+                    nomi cliente). Da leggere prima di ogni PR sul kit.
+templates/          Skeleton dei doc "vivi" da copiare nel nuovo progetto
+                    (PROJECT_STATE.md, formato ADR).
+mcp-template/       Scheletro Worker MCP custom (OAuth 2.1 + DCR) per Claude
+                    web/mobile/desktop. Pronto da clonare in un nuovo progetto.
+snippets/           Frammenti di codice testati in produzione (sync, audit log,
+                    drag&drop touch, RLS multi-tenant, test harness Playwright).
 ```
+
+## Bootstrap di un nuovo progetto (per Claude Code)
+
+Se sei un Claude che apre la prima sessione di un nuovo prodotto Nove C, parti
+da **[`AGENT_BOOTSTRAP.md`](AGENT_BOOTSTRAP.md)**: è la "lettera alla prima
+sessione" e ti orchestra tutto — cosa leggere (il `PLAYBOOK.md`), quali domande
+fare al PM, quali file creare nei giorni 1-3 e quali pezzi copiare da qui
+(`templates/`, `snippets/`, `mcp-template/`). In pratica: copia
+`AGENT_BOOTSTRAP.md` come `CLAUDE.md` nel nuovo repo, personalizzalo, e parti da lì.
 
 ## Come usarlo
 
@@ -57,10 +77,11 @@ Apri [`snippets/`](snippets/), trova quello che ti serve, copialo nel tuo
 
 ## Versioning
 
-Tag semver: `v1`, `v1.1`, `v2`. Nel tuo progetto **fissa una versione**
-quando copi (es. nota nel commit: `// adapted from nove-c-kit v1`). Quando
-esce `v2` decidi tu se aggiornare — questo repo non ha breaking-change
-automatici per chi ha già copiato.
+Il repo è taggato (`v1` = primo caricamento dei file su `main`). Quando copi
+qualcosa nel tuo progetto **annota da quale versione/commit l'hai preso**
+(es. nel commit: `// adapted from nove-c-kit v1`). Se in futuro esce un tag
+nuovo, decidi tu se aggiornare — qui non ci sono breaking-change automatici
+per chi ha già copiato.
 
 ## Regole non negoziabili
 
