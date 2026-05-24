@@ -1,5 +1,16 @@
 # Changelog
 
+## Non rilasciato (post-v1)
+
+- `templates/` — skeleton dei doc vivi da copiare nel nuovo progetto
+  (`PROJECT_STATE.md` con sezione "Ambienti live", formato ADR).
+- `mcp-template/.dev.vars.example` — template env per `wrangler dev`
+  (era citato in doc ma il file mancava).
+- Doc: chiarito che il `PLAYBOOK.md` vive nel kit (non nello Scadenzario),
+  aggiunto entry-point di bootstrap per Claude nel README, wiring del
+  checklist giorno 1-3 di `AGENT_BOOTSTRAP.md` ai file del kit, sezione
+  versioning allineata al solo tag `v1`.
+
 ## v1 — 2026-05-24
 
 Prima release del kit, estratta dallo Scadenzario Commercialisti

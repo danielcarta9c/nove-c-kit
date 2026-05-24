@@ -20,11 +20,22 @@ AGENT_BOOTSTRAP.md  Lettera al Claude della prima sessione. Da copiare come
                     CLAUDE.md nel nuovo progetto e personalizzare.
 REGOLE.md           Regole di igiene di QUESTO repo pubblico (mai secret, mai
                     nomi cliente). Da leggere prima di ogni PR sul kit.
+templates/          Skeleton dei doc "vivi" da copiare nel nuovo progetto
+                    (PROJECT_STATE.md, formato ADR).
 mcp-template/       Scheletro Worker MCP custom (OAuth 2.1 + DCR) per Claude
                     web/mobile/desktop. Pronto da clonare in un nuovo progetto.
 snippets/           Frammenti di codice testati in produzione (sync, audit log,
                     drag&drop touch, RLS multi-tenant, test harness Playwright).
 ```
+
+## Bootstrap di un nuovo progetto (per Claude Code)
+
+Se sei un Claude che apre la prima sessione di un nuovo prodotto Nove C, parti
+da **[`AGENT_BOOTSTRAP.md`](AGENT_BOOTSTRAP.md)**: è la "lettera alla prima
+sessione" e ti orchestra tutto — cosa leggere (il `PLAYBOOK.md`), quali domande
+fare al PM, quali file creare nei giorni 1-3 e quali pezzi copiare da qui
+(`templates/`, `snippets/`, `mcp-template/`). In pratica: copia
+`AGENT_BOOTSTRAP.md` come `CLAUDE.md` nel nuovo repo, personalizzalo, e parti da lì.
 
 ## Come usarlo
 

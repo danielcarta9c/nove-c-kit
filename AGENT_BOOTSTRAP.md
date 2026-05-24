@@ -92,23 +92,26 @@ cosmetico).
 
 ## Documenti da creare giorno 1, 2, 3
 
+> I pezzi da copiare vivono nel kit `nove-c-kit`: doc-skeleton in `templates/`,
+> codice in `snippets/`, MCP in `mcp-template/`. Non reinventarli: copiali e adatta.
+
 ### Giorno 1
 
 - [ ] `README.md` — mezza pagina, setup base, link al PRD
-- [ ] `CLAUDE.md` — questo file, personalizzato
-- [ ] `PROJECT_STATE.md` — 3 sezioni vuote (Now, Next, Done log)
+- [ ] `CLAUDE.md` — questo file (`AGENT_BOOTSTRAP.md`), personalizzato
+- [ ] `PROJECT_STATE.md` — copia da `nove-c-kit/templates/PROJECT_STATE.md`
 - [ ] `PRD_<NOME>.md` — o link a SharePoint, o abbozzato dopo le 5 domande
 
 ### Giorno 2
 
-- [ ] `sql/01-schema.sql` — schema iniziale con workspace + audit + soft delete
-- [ ] `docs/adr/0001-stack.md` — l'ADR fondativo che fissa lo stack
+- [ ] `sql/01-schema.sql` — copia `nove-c-kit/snippets/multi-tenant-audit-soft-delete.sql` (Playbook §28)
+- [ ] `docs/adr/0001-stack.md` — usa `nove-c-kit/templates/adr-template.md` (Playbook §18)
 - [ ] `docs/ARCHITECTURE.md` — topologia, stack, ADR linkati. ~1 pagina
 
 ### Giorno 3
 
-- [ ] `index.html` — scheletro con BLOCK 1 (sync), BLOCK 2 (auth)
-- [ ] `test/setup.mjs` — copia da Playbook §31
+- [ ] `index.html` — scheletro + snippet sync (`markDirty-saveNow.mjs`, `handleRemoteChange.mjs`, `audit-log.mjs`)
+- [ ] `test/setup.mjs` — copia da `nove-c-kit/snippets/bootHarness.mjs` (Playbook §31)
 - [ ] `test/01-base-flow.mjs` — primo smoke test
 - [ ] Prima entry in `PROJECT_STATE.md` → Done log
 

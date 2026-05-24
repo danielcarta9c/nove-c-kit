@@ -1,0 +1,15 @@
+# .dev.vars.example — copia in `.dev.vars` (gitignored) e compila per `wrangler dev`.
+# Sono gli stessi valori che in produzione setti con `wrangler secret put <NAME>`.
+# Il `.dev.vars` reale NON va committato: contiene la Secret key.
+
+# Project URL Supabase NUDO, senza /rest/v1/ (vedi PLAYBOOK §3 — gotcha path doppio).
+SUPABASE_URL=https://<tuo-project>.supabase.co
+
+# Supabase Secret key (sb_secret_...). RLS-bypass, server-only (vedi PLAYBOOK §2).
+SUPABASE_SERVICE_KEY=sb_secret_xxxxxxxxxxxxxxxxxxxxxxxx
+
+# Consent password che l'utente incolla nel form /authorize. Genera 32 char random.
+MCP_AUTH_TOKEN=sostituisci-con-32-char-random
+
+# Opzionale: workspace id, se diverso dal default multi-tenant.
+# PROJECT_WORKSPACE_ID=00000000-0000-0000-0000-000000000001
