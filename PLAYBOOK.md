@@ -46,6 +46,7 @@ Quando in un repo Nove C apri un file, queste sono le responsabilità.
 1. [MCP custom connector per Claude (web/mobile/desktop)](#1-mcp-custom-connector-per-claude-webmobiledesktop)
 2. [Supabase API keys: nuova nomenclatura publishable/secret](#2-supabase-api-keys-nuova-nomenclatura)
 3. [Project URL vs API URL su Supabase (gotcha del path doppio)](#3-project-url-vs-api-url-il-gotcha-del-path-doppio)
+3b. [Data API: la schema `public` non più esposta di default (2026)](#3b-data-api-la-schema-public-non-piu-esposta-di-default-2026)
 4. [Cloudflare Workers + KV come "backend per piccoli servizi"](#4-cloudflare-workers--kv-come-backend-per-piccoli-servizi)
 
 **Parte B — Pattern consolidati Nove C** (lezioni dal CRM Nove C v6, riusate qui):
@@ -285,6 +286,58 @@ client SDK ci appende ANCORA `/rest/v1/` → ottieni `.../rest/v1//rest/v1/clien
 funziona" ma è solo un path doppio.
 
 **Regola**: usa sempre il **Project URL** (quello base, senza `/rest/v1/`).
+
+---
+
+## 3b. Data API: la schema `public` non più esposta di default (2026)
+
+**Cosa cambia.** Storicamente Supabase esponeva in automatico al Data API
+(PostgREST / GraphQL / supabase-js) ogni tabella creata in `public`. Da metà
+2026 non più: una tabella **nuova** in `public` è raggiungibile dal client solo
+dopo un `GRANT` esplicito ai ruoli del Data API.
+
+**Date** (discussione ufficiale: `github.com/orgs/supabase/discussions/45329`):
+- **28 apr 2026**: toggle opt-in in fase di creazione progetto.
+- **30 mag 2026**: nuovo default per **tutti i progetti nuovi**.
+- **30 ott 2026**: applicato anche ai progetti esistenti.
+- (18 mag 2026: `pg_graphql` disabilitato di default — irrilevante per noi,
+  usiamo PostgREST/supabase-js.)
+
+**Cosa NON cambia.** Le tabelle **esistenti** tengono i loro grant e restano
+raggiungibili. Solo le tabelle **nuove** create dopo la data richiedono il
+grant. → Un progetto già live (es. Scadenzario) è coperto; il punto critico è
+il **prossimo progetto creato da zero**.
+
+**Grant ≠ RLS.** Sono due livelli distinti: il `GRANT` decide se un ruolo può
+toccare la tabella **del tutto**, l'RLS decide **quali righe** vede. Servono
+entrambi, e il grant deve esserci perché l'RLS conti qualcosa.
+
+**La forma Nove C** (app auth-gated, PK in UUID, soft-delete): grant a
+`authenticated` (utenti loggati) **e `service_role`** — quest'ultimo è
+essenziale perché **l'MCP Worker usa la Secret key**: senza, su un progetto
+nuovo le tabelle sono invisibili anche all'MCP, non solo al frontend. Niente
+`anon` (l'app richiede login). Niente grant sequenze sulle tabelle business
+(UUID), **ma sì** se una tabella è `BIGSERIAL` (es. `audit_log`).
+
+```sql
+-- Per ogni tabella business (UUID PK). Togli DELETE se usi solo soft-delete.
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.<entity> TO authenticated, service_role;
+
+-- audit_log se BIGSERIAL: l'INSERT richiede anche la sequenza.
+GRANT SELECT, INSERT ON public.audit_log TO authenticated, service_role;
+GRANT USAGE, SELECT ON SEQUENCE public.audit_log_id_seq TO authenticated, service_role;
+```
+
+**Dove va.** Nei file `sql/*.sql` del progetto, subito **dopo** le policy RLS.
+Lo snippet §28 (`nove-c-kit/snippets/multi-tenant-audit-soft-delete.sql`) è già
+aggiornato: i grant sono dentro il loop, uno per tabella business. Mettili
+nelle migration versionate, **non** a mano dal dashboard, così `supabase db
+reset` resta riproducibile.
+
+**L'errore da riconoscere.** Se supabase-js o l'MCP ricevono `permission denied
+for table X`, manca il `GRANT` — non è un problema di RLS. (Per i progetti
+esistenti, prima del 30 ott: usa il **Security Advisor** del dashboard per
+vedere quali tabelle sono esposte.)
 
 ---
 
@@ -822,7 +875,8 @@ primo**. Apri i documenti in quest'ordine:
 2. Crea `docs/adr/0001-stack.md` che dichiara: vanilla JS + Supabase + (eventuale)
    Worker MCP. È la "Costituzione" del progetto.
 3. Lancia gli script SQL su un progetto Supabase fresco. Configura RLS,
-   Storage bucket, Realtime publication.
+   **grant Data API per ogni tabella** (§3b — obbligatorio sui progetti
+   creati dal 30 mag 2026), Storage bucket, Realtime publication.
 4. Aggiorna `README.md` con i 5 step di setup (vedi quello dello Scadenzario
    come template).
 

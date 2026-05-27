@@ -1,5 +1,15 @@
 # Changelog
 
+## Non rilasciato (post-v1.1)
+
+- PLAYBOOK §3b — breaking change Supabase 2026: la schema `public` non è più
+  esposta al Data API di default (progetti nuovi dal 30 mag 2026, esistenti dal
+  30 ott 2026). Spiega date, grant ≠ RLS, e la forma Nove C (`authenticated` +
+  `service_role`, no `anon`).
+- `snippets/multi-tenant-audit-soft-delete.sql` — aggiunti i `GRANT` Data API
+  per tabella business + `audit_log` (incl. sequenza BIGSERIAL). Riferimento in
+  §14 (setup Giorno 2).
+
 ## v1.1 — 2026-05-24
 
 - `templates/` — skeleton dei doc vivi da copiare nel nuovo progetto
