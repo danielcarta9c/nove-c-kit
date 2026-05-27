@@ -14,7 +14,7 @@
 -- TODO progetto: cerca <entity_a>, <entity_b>, <entity_c> e sostituisci con
 -- i nomi reali delle tue tabelle business (NON includere qui auth.users o
 -- tabelle di sistema). Mantieni l'ordine: workspaces → membership → trigger
--- → ALTER tabelle → audit_log → policy.
+-- → ALTER tabelle → audit_log → policy → grant Data API.
 --
 -- Esecuzione: SQL Editor Supabase, una tantum. Idempotente, additive only.
 -- ============================================================================
@@ -172,6 +172,13 @@ BEGIN
   END IF;
 END $$;
 
+-- Data API exposure (Supabase, dal 2026): senza GRANT la tabella è invisibile
+-- a PostgREST/supabase-js sui progetti NUOVI. RLS resta un livello separato
+-- (filtra le righe). audit_log è BIGSERIAL → l'INSERT richiede anche USAGE
+-- sulla sequenza. service_role incluso perché l'MCP Worker usa la Secret key.
+GRANT SELECT, INSERT ON public.audit_log TO authenticated, service_role;
+GRANT USAGE, SELECT ON SEQUENCE public.audit_log_id_seq TO authenticated, service_role;
+
 -- ----------------------------------------------------------------------------
 -- RLS update: policy workspace-scoped + soft-delete-aware su ogni business
 -- table. DROP + CREATE perché ALTER POLICY non supporta modifica predicato
@@ -217,6 +224,16 @@ BEGIN
         FOR DELETE TO authenticated
         USING (workspace_id = public.current_workspace_id())
     $f$, t);
+
+    -- Data API exposure (Supabase 2026): senza questo GRANT la tabella è
+    -- invisibile a PostgREST/supabase-js sui progetti nuovi. service_role
+    -- incluso (l'MCP Worker usa la Secret key). Niente anon: app auth-gated.
+    -- Niente grant sequenze: PK in UUID. (Se la PK fosse BIGSERIAL, aggiungi
+    -- GRANT USAGE, SELECT ON SEQUENCE come per audit_log.)
+    EXECUTE format(
+      'GRANT SELECT, INSERT, UPDATE, DELETE ON public.%I TO authenticated, service_role',
+      t
+    );
   END LOOP;
 END $$;
 
@@ -225,4 +242,5 @@ END $$;
 --   SELECT count(*) FROM <entity_a> WHERE workspace_id IS NULL;     -- atteso: 0
 --   SELECT count(*) FROM workspace_members WHERE user_id IS NULL;   -- atteso: 0
 --   SELECT current_workspace_id();                                  -- atteso: l'UUID di default
+--   SELECT has_table_privilege('authenticated','public.<entity_a>','SELECT'); -- atteso: true (Data API)
 -- ============================================================================
