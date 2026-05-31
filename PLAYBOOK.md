@@ -18,6 +18,11 @@ di vantaggio.
 Quando in un repo Nove C apri un file, queste sono le responsabilità.
 **Non duplicare contenuto fra file**: ogni informazione ha una sola casa.
 
+> Nota: la tabella descrive il layout **dentro un repo-prodotto** (con i
+> doc sotto `docs/`). Il kit stesso (`nove-c-kit`) ha invece `PLAYBOOK.md`
+> e `AGENT_BOOTSTRAP.md` nella root, perché è materiale di riferimento da
+> copiare, non un prodotto.
+
 | File | Risponde a | Vita |
 |------|------------|------|
 | `README.md` | "Come setto e lancio il progetto?" | Quasi statico |
