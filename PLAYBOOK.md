@@ -47,6 +47,8 @@ Quando in un repo Nove C apri un file, queste sono le responsabilità.
 2. [Supabase API keys: nuova nomenclatura publishable/secret](#2-supabase-api-keys-nuova-nomenclatura)
 3. [Project URL vs API URL su Supabase (gotcha del path doppio)](#3-project-url-vs-api-url-il-gotcha-del-path-doppio)
 3b. [Data API: la schema `public` non più esposta di default (2026)](#3b-data-api-la-schema-public-non-piu-esposta-di-default-2026)
+3c. [Supabase: regime di storage + uscire dal read-only](#3c-supabase-regime-di-storage--uscire-dal-read-only)
+3d. [RAG / ingestion pipeline: filone 2026 (lezioni KB)](#3d-rag--ingestion-pipeline-filone-2026-lezioni-kb)
 4. [Cloudflare Workers + KV come "backend per piccoli servizi"](#4-cloudflare-workers--kv-come-backend-per-piccoli-servizi)
 
 **Parte B — Pattern consolidati Nove C** (lezioni dal CRM Nove C v6, riusate qui):
@@ -81,6 +83,7 @@ Quando in un repo Nove C apri un file, queste sono le responsabilità.
 32. [Audit del contesto prima di chiedere + stato operativo cloud](#32-audit-del-contesto-prima-di-chiedere--stato-operativo-cloud)
 33. [Design discovery prima di codice (mockup HTML statici)](#33-design-discovery-prima-di-codice)
 34. [Parsimonia su build credits CI/CD (batch grandi, push singoli)](#34-parsimonia-su-build-credits)
+35. [Automazione ops via GitHub Actions + auto-commit log](#35-automazione-ops-via-github-actions--auto-commit-log)
 
 **Parte E — Snippet riusabili** (copia-incolla, già testati in produzione):
 
@@ -338,6 +341,94 @@ reset` resta riproducibile.
 for table X`, manca il `GRANT` — non è un problema di RLS. (Per i progetti
 esistenti, prima del 30 ott: usa il **Security Advisor** del dashboard per
 vedere quali tabelle sono esposte.)
+
+---
+
+## 3c. Supabase: regime di storage + uscire dal read-only
+
+**Capire il regime PRIMA di riempire.** Free tier = cap **DATABASE 500MB**;
+piani a disco = cap ~95% del disco effettivo. Sapere quale si applica
+(empiricamente: a che soglia sei andato read-only) cambia ogni decisione di
+scala. **Il disco cresciuto NON si restringe da solo**: una crescita è un
+costo permanente.
+
+**Misurare il bloat PRIMA di vacuum-are.** `pg_relation_size` mostra il
+"vivo", `pg_total_relation_size` include TOAST + indici. I **vettori
+pgvector stanno nel TOAST**, non nel vivo: non scambiare la differenza per
+bloat. Controlla `pg_stat_user_tables.n_dead_tup` prima del `VACUUM FULL`;
+un VACUUM FULL su 0 dead rows non recupera nulla (errore vissuto: ore perse).
+
+**Uscire da un DB read-only** (cap raggiunto):
+- Dal dashboard Supabase: banner **"Override"** → 15 min di scrittura per ripulire.
+- Da SQL: `SET TRANSACTION READ WRITE` come **prima istruzione** della sessione.
+- `DROP INDEX` libera spazio SENZA scrivere file temporanei → gira anche a
+  disco pieno (utile quando `VACUUM` non parte per mancanza di spazio).
+
+**SQL editor di Supabase = una sola transazione.** `VACUUM` e
+`CREATE INDEX CONCURRENTLY` NON girano lì → serve **psql** (locale o via
+workflow Actions, vedi §35).
+
+**Mobile copia-incolla — gotcha veri** (rilevanti perché molte ops di
+emergenza si fanno dal telefono):
+- `nome.id` viene trasformato in link (`.id` = TLD Indonesia). Usa `"id"`
+  fra virgolette per evitare l'auto-link.
+- L'operatore `<=>` (cosine distance pgvector) viene maciullato dai
+  rendering mobili. Usa `cosine_distance(a, b)` (richiede pgvector ≥ 0.7).
+- pgvector ≥ 0.7 espone anche `subvector()` e `l2_normalize()` — utili per
+  il troncamento Matryoshka in-place (vedi §3d).
+
+---
+
+## 3d. RAG / ingestion pipeline: filone 2026 (lezioni KB)
+
+Nuovo filone Nove C: fino a inizio 2026 i prodotti erano web-app sync; con
+la Knowledge Base studio è arrivato il primo "pipeline dati + RAG" —
+delta-sync da una sorgente esterna → estrazione testo → embedding →
+pgvector → retrieval via MCP. **Snippet completi in promozione** dal repo
+KB (vedi `REGOLE.md` "Workflow di promozione"): `snippets/pgvector-rag.sql`
+(schema documents/chunks + RPC `match_chunks` + indice HNSW),
+`snippets/ingestion-job.mjs` (delta-sync ripartibile),
+`mcp-template/tools/search-kb.example.mjs` (tool MCP che embedda la query e
+chiama l'RPC). Le **lezioni** sono già qui sotto.
+
+**Stima PRIMA, indicizza DOPO.** Bulk-load di un corpus senza stimare
+quanti chunk produrrà ti porta read-only senza preavviso (§3c). Modalità
+"SCAN" che conta i file in-scope dai soli METADATI (no download) e stima
+chunk + spazio. **Decidere lo scope sui NUMERI**, non sui nomi delle
+cartelle. Vedi anche §11 (anti-pattern).
+
+**Job ripartibile, scrittura file-per-file.** L'ingest scrive ogni file
+appena pronto: un crash o un timeout NON perde il lavoro fatto. Flag per
+saltare i già indicizzati (etag / hash). **Conseguenza mentale
+importante**: i dati nel DB possono essere il deposito PARZIALE di un run
+morto a metà, non "lavoro finito". Non fidarti del "i dati ci sono" finché
+non vedi l'esito del run nei log (vedi §35 per il pattern auto-commit log).
+
+**Embedding: Matryoshka per dimezzare lo storage senza ri-embeddare.**
+`text-embedding-3-small` di OpenAI supporta il parametro `dimensions`
+(Matryoshka): si tronca **1536 → 768** con −50% storage e <1% degrado MTEB,
+**senza ri-chiamare l'API**: troncare e rinormalizzare i vettori esistenti
+dà lo stesso risultato della richiesta API a 768 dimensioni. ADR di
+riferimento da fare per ogni nuovo progetto RAG (usa
+`templates/adr-template.md`).
+
+**Estrazione testo: skippa per BYTE prima del download.** `pdf-parse` /
+`xlsx` caricano l'intero file in memoria prima che tu possa troncarlo →
+OOM su PDF scansionati o xlsx enormi. Filtra per file size dai metadati
+**senza scaricare**. + tetto al numero di caratteri estratti. +
+`--max-old-space-size` **adeguato al runner** (GitHub runner ha 16 GB:
+metterlo a 3 GB "per prudenza" è un autogol che CAUSA l'OOM invece di
+prevenirlo) + `global.gc()` periodico con `--expose-gc` (`pdf-parse`
+trattiene memoria fra i file). Vedi anche §11.
+
+**Sanitize prima dell'insert.** Testo grezzo da `.txt` / estrazioni può
+contenere byte NUL e altri control char → `unsupported Unicode escape
+sequence`, insert fallito, file perso. Rimpiazza i control char
+preservando `\t \n \r` prima di salvare.
+
+**Retry sul rate limit OpenAI.** Embedding 429 (TPM) senza backoff → file
+persi silenziosamente. Retry con backoff che **rispetta il "try again in
+Xs"** del provider (è nel body della 429).
 
 ---
 
@@ -640,6 +731,12 @@ Non rifare questi, ognuno ci è costato almeno mezza giornata:
 | `state.x = await fetch()` dentro un onInput | Cascade di network call | `markDirty()` + debounce 350ms (vedi §6) |
 | Polish CSS sopra layout 2018 e chiamarlo "wow" | Il PM vede ancora "gestionale italiano". Dark mode + ⌘K + skeleton non bastano se la *struttura* delle schede è "muro di form" | Ridisegno *strutturale* (section card, hero, toggle iOS, select-row): vedi §11b + §33 |
 | Generic palette teal/blu/red Tailwind quando il cliente ha già un sito brandizzato | App "uno tra tanti", il cliente non riconosce il proprio brand nella sua app | Estrarre la palette UFFICIALE dal sito del cliente (kit Elementor/WordPress, computed style, screenshot OCR): vedi §11b |
+| Estrazione testo che carica l'intero file in memoria (`pdf-parse`, `xlsx`) | OOM su PDF scansionati o xlsx enormi | Skip per BYTE dai metadati **prima** del download; tetto ai caratteri estratti; `--max-old-space-size` 12-14 GB sul runner GitHub (non meno!); `global.gc()` con `--expose-gc`. Vedi §3d |
+| Bulk-load embedding senza stimare la dimensione finale | DB Supabase saturo, va in read-only senza preavviso | Modalità SCAN: conta i file in-scope dai metadati + stima chunk e spazio PRIMA. Scope sui numeri. Vedi §3c, §3d |
+| Testo grezzo / estrazioni inserite in Postgres senza sanitize | `unsupported Unicode escape sequence`, insert fallito, file perso | Rimpiazza i control char (preservando `\t \n \r`) prima dell'insert. Vedi §3d |
+| Chiamate API embedding senza retry sul rate limit | 429 TPM (OpenAI) → file persi silenziosamente | Retry con backoff che rispetta il `try again in Xs` del provider (è nel body della 429). Vedi §3d |
+| `VACUUM FULL` lanciato senza misurare dead tuples | Ore di lock per zero spazio recuperato (i vettori sono nel TOAST, non bloat) | `pg_stat_user_tables.n_dead_tup` PRIMA; usa `pg_total_relation_size` per il "vero" peso. Vedi §3c |
+| Loop umano-AI di copia-incolla per ops cloud da telefono | Ore perse, errori da caratteri mangiati (`<=>`, `.id`), zero notte autonoma | Workflow GitHub Actions con auto-commit log: l'AI legge gli esiti via `git pull`. Vedi §35 |
 
 ---
 
@@ -1196,6 +1293,12 @@ il PM rivede.
 **Esempi storici dal repo**:
 - `docs(notte): human scenarios + USER_GUIDE + SENIOR_ANALYSIS + ROADMAP + PROJECT_STATE`
 - `feat(mcp): server MCP custom per Claude (16 tool read+write, JSON-RPC stdio)`
+
+**Estensione alle ops**: la notte autonoma vale anche per le operazioni
+infrastrutturali (deploy, ingest, migrazioni SQL) — vedi **§35
+"Automazione ops via GitHub Actions + auto-commit log"**: l'agente
+diagnostica, corregge e ri-testa leggendo gli esiti via `git pull`, senza
+copia-incolla umano.
 
 ---
 
@@ -2036,6 +2139,133 @@ feature"). È il segnale che hai pushato troppo e il PM lo ha notato.
 - Sessione Sprint UX-D Wave 2: PM al 75% credito → strategia "1 push per
   Wave" applicata, push singolo per Wave 2 + 1 per Wave 2.5 + 1 per
   bugfix scheda cliente = 3 build per ~12h di lavoro denso. Funziona.
+
+---
+
+## 35. Automazione ops via GitHub Actions + auto-commit log
+
+**Il problema che risolve.** Quando lavori a un'infra cloud (database,
+Worker, deploy) da un client dove **l'agente AI non ha le credenziali** (e
+non deve averle), si finisce a fare il ponte umano: l'AI scrive il comando,
+tu lo incolli nella console del provider, copi il risultato, glielo
+reincolli. Lento, fragile (caratteri storpiati dal telefono — vedi §3c) e
+impossibile in autonomia (§24).
+
+**L'idea.** Trasformare ogni operazione cloud in un workflow GitHub Actions
+che (1) gira sul runner con i secret iniettati come env, (2)
+**auto-committa il proprio output in un file del repo**, (3) è lanciabile
+con `workflow_dispatch` o da `schedule: cron`. L'agente AI prepara il
+workflow, in `git pull` legge l'esito dopo il run, su errore corregge e
+rilancia. **Loop autonomo, senza copia-incolla umano.**
+
+**Perché funziona.** I secret restano in GitHub (criptati, mai nel repo,
+mai in chat con l'AI), il repo diventa il canale di ritorno dei risultati.
+L'AI non vede mai un secret ma può orchestrare e leggere esiti.
+
+**3 limiti onesti** (dichiarali al PM ogni volta):
+1. **Il primo trigger / l'attivazione del cron li fa l'umano una volta.**
+   Molti client AI non hanno il permesso di "far partire" un workflow:
+   scrivono codice e PR, non triggerano run. Con il cron attivo, da lì in
+   poi è autonomo.
+2. **Il cron di Actions è impreciso**: 5-15+ min di ritardo. Per loop non
+   presidiati va bene; per "subito" usa il dispatch manuale.
+3. **Copre solo ciò che il runner raggiunge coi secret presenti.** `psql`
+   verso Postgres e `wrangler` verso Cloudflare sì; sorgenti dietro auth
+   interattive (un tenant M365 con consensi) possono restare fuori.
+
+### Setup dei secret (minimo privilegio)
+
+I secret vanno SOLO in **GitHub → Settings → Secrets and variables →
+Actions**. Mai nel repo, nei commit, nei doc, in chat con l'agente.
+**Regola d'oro**: l'agente può GENERARE un valore casuale (es. un token),
+ma è l'umano che lo SALVA nel secret. Un secret committato è un secret
+bruciato.
+
+Identificatori NON segreti (Account ID, KV namespace id, host DB, project
+ref) possono stare nel repo / workflow in chiaro. Solo
+password/token/chiavi sono segreti.
+
+### Esempio A — SQL su Postgres/Supabase via `psql`
+
+- Secret: `SUPABASE_DB_PASSWORD` (solo la password; host/user/db nel workflow).
+- Connessione: **Session Pooler IPv4, porta 5432** (il transaction pooler
+  6543 NON fa girare `VACUUM`; la direct IPv6 spesso non è raggiungibile
+  dal runner GitHub).
+- Passa la password come env `PGPASSWORD` **separata** (non dentro un URL):
+  così i caratteri speciali NON vanno url-encoded.
+- `psql -v ON_ERROR_STOP=1 -f script.sql`. **Niente `--single-transaction`**:
+  `VACUUM` e `CREATE INDEX CONCURRENTLY` non girano in transazione.
+- Lo script SQL è un **file versionato** nel repo (es. `sql/ops/*.sql`),
+  non testo incollato. Riusabile, rivedibile, diff-abile.
+
+### Esempio B — Deploy Cloudflare Worker via `wrangler`
+
+- Secret: `CLOUDFLARE_API_TOKEN`, token custom dal template **"Edit
+  Cloudflare Workers"** (Account: *Workers Scripts: Edit*, *Workers KV
+  Storage: Edit*, *Account Settings: Read*). Niente Client IP filter (l'IP
+  del runner cambia). Le API Cloudflare sono gratis sul piano free.
+- `CLOUDFLARE_ACCOUNT_ID` (non segreto) come env per `wrangler`.
+- I **secret del Worker** (`wrangler secret put …`) sono persistenti: un
+  `wrangler deploy` NON li cancella. Non vanno reimpostati a ogni deploy.
+- ATTENZIONE allo stato non versionato: se hai editato `wrangler.toml` a
+  mano (es. KV namespace `id`) e NON l'hai committato, il repo ha un
+  placeholder e il deploy da CI si aggancia al **KV sbagliato** → gli
+  utenti OAuth perdono il consenso. Metti l'id reale nel `wrangler.toml`
+  committato PRIMA di deployare da CI.
+
+### Lo scheletro del workflow
+
+Scaffold pronto in **`snippets/ops-auto-commit-workflow.yml`**. Note dure
+imparate sul campo:
+- `working-directory: .` sullo step di commit se il job ne ha uno di
+  default (altrimenti il path raddoppia: `mcp-server/mcp-server/out/`).
+- `[skip ci]` nel messaggio per non innescare altri workflow a catena.
+- `if: always()` così il log si committa anche quando il comando fallisce
+  (l'errore è proprio ciò che vuoi leggere).
+- `set +e` + cattura dell'exit code: non far fallire lo step prima di
+  salvare l'output.
+
+### Verifica la catena PRIMA di fidartene (self-test `on: push`)
+
+Non dare per scontato che l'auto-commit funzioni: testalo end-to-end con
+un workflow usa-e-getta che parte **subito** al push. Workflow pronto in
+**`snippets/selftest-autolog.yml`**. Perché `on: push` e non il cron per
+testare:
+- `on: push` parte all'istante; il `cron` ha 5-15 min di latenza.
+- Il push del bot via `GITHUB_TOKEN` **non ri-triggera** altri workflow
+  (con `[skip ci]` nel messaggio doppia sicurezza): nessun loop infinito.
+
+Dopo la conferma in ~15 secondi che il commit di `ci-bot` è apparso,
+**rimuovi** il workflow di test (e la cartella `ops/out/selftest/`) con un
+commit dedicato.
+
+### Quando NON usarlo
+
+- Operazione una tantum e sei al PC: fai e basta.
+- Serve interazione umana nel mezzo (conferme, MFA): l'automazione non
+  aiuta.
+- Anti-overengineering (§13): non incartare in un workflow ciò che fai
+  una volta sola in 10 secondi.
+
+### Relazione con altre sezioni
+
+- **§24 "Notte autonoma"**: questo pattern è ciò che la rende davvero
+  possibile sulle **ops** (non solo sul codice). L'agente diagnostica,
+  corregge e ri-testa un ingest o un deploy mentre dormi.
+- **§34 "Parsimonia build credits"**: un workflow `cron` ogni 15 min
+  consuma minuti CI. Usa `paths:` per limitare i trigger e preferisci
+  `workflow_dispatch` per ops non ricorrenti.
+- **§3c "Supabase storage + read-only"**: il pattern Actions+psql è il
+  modo giusto per lanciare `VACUUM` / `CREATE INDEX CONCURRENTLY` (che il
+  SQL editor di Supabase non sa fare).
+
+### Lezione meta
+
+**Prima di accettare un loop umano-AI di copia-incolla, chiediti: posso
+trasformarlo in workflow + auto-commit log?** Se sì, fallo subito: il costo
+di setup si ripaga al secondo giro. Nella sessione KB ci siamo accorti
+**tardi** che era possibile: ore di copia-incolla manuale che, con il
+pattern attivo, sarebbero state un loop autonomo notturno.
 
 ---
 

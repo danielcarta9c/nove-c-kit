@@ -1,0 +1,51 @@
+# selftest-autolog.yml — Workflow usa-e-getta per verificare END-TO-END la
+# catena auto-commit PRIMA di fidartene con un comando vero. Vedi PLAYBOOK §35.
+#
+# Procedura:
+#  1. Copia in `.github/workflows/selftest-autolog.yml`.
+#  2. Push del file stesso → il workflow parte SUBITO (no cron, no latenza).
+#  3. Entro ~15 secondi deve apparire un commit di `ci-bot` su main, e il file
+#     `ops/out/selftest/<timestamp>.txt` deve esistere e contenere "selftest OK".
+#  4. RIMUOVI il workflow (e la cartella `ops/out/selftest/`) con un commit dedicato.
+#
+# Perché `on: push` e non `cron` per testare:
+# - `on: push` parte all'istante; il `cron` ha 5-15 min di latenza.
+# - Il push del bot via GITHUB_TOKEN non ri-triggera workflow (con `[skip ci]`
+#   doppia sicurezza): nessun loop infinito.
+
+name: selftest autolog
+
+on:
+  push:
+    paths:
+      - ".github/workflows/selftest-autolog.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: selftest-autolog
+  cancel-in-progress: false
+
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Scrivi e auto-committa un log di prova
+        run: |
+          set -e
+          mkdir -p ops/out/selftest
+          TS=$(date -u +%Y%m%dT%H%M%SZ)
+          OUT="ops/out/selftest/${TS}.txt"
+          echo "selftest OK @ ${TS} UTC — se leggi questo nel repo, l'auto-commit funziona." > "$OUT"
+          cat "$OUT"
+
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@users.noreply.github.com"
+          git add ops/out/selftest/
+          git commit -m "chore(selftest): auto-commit log OK ${TS} [skip ci]"
+          git push origin main

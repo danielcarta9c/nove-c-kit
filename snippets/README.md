@@ -11,6 +11,8 @@ nel tuo `index.html` (o equivalente) e adattare ai nomi delle tue entità.
 | `multi-tenant-audit-soft-delete.sql` | Schema trasversale: workspaces, current_workspace_id(), audit_log, soft delete, RLS workspace-scoped | §9 + §28 |
 | `attachKanDrag.mjs` | Drag&drop Kanban touch-friendly su iPhone (long-press + passive: false) | §10 + §29 |
 | `bootHarness.mjs` | Test harness Playwright headless: server statico + Supabase prod bloccato | §21 + §31 |
+| `ops-auto-commit-workflow.yml` | Scheletro GitHub Actions: esegue un'op cloud (psql, wrangler…) e auto-committa il log nel repo | §35 |
+| `selftest-autolog.yml` | Workflow usa-e-getta per verificare end-to-end la catena auto-commit prima di usarla davvero | §35 |
 
 ## Come usarli
 

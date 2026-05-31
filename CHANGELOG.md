@@ -2,6 +2,25 @@
 
 ## Non rilasciato (post-v1.1)
 
+- PLAYBOOK §35 — nuovo pattern PM "Automazione ops via GitHub Actions +
+  auto-commit log": ogni op cloud (psql, wrangler…) diventa un workflow che
+  scrive l'output in un file del repo. Estende §24 "Notte autonoma" alle ops
+  infrastrutturali (l'agente legge gli esiti via `git pull`, zero copia-incolla).
+  Scaffold pronti in `snippets/ops-auto-commit-workflow.yml` e
+  `snippets/selftest-autolog.yml`.
+- PLAYBOOK §3c — Supabase: regime di storage (free 500MB vs disco), uscire dal
+  read-only (Override, `SET TRANSACTION READ WRITE`, `DROP INDEX` per liberare
+  spazio), `pg_total_relation_size` vs `pg_relation_size` (i vettori sono nel
+  TOAST), SQL editor = una transazione (per `VACUUM`/`CREATE INDEX CONCURRENTLY`
+  serve psql), gotcha mobile copia-incolla (`.id` auto-link, `<=>` mangiato).
+- PLAYBOOK §3d — filone RAG/ingestion pipeline (lezioni KB): stima prima/
+  indicizza dopo, job ripartibile file-per-file, Matryoshka per dimezzare lo
+  storage senza ri-embeddare, estrazione testo che evita l'OOM, sanitize prima
+  dell'insert, retry sul 429. Snippet pgvector/ingestion/tool MCP search-kb
+  segnati "in promozione" dal repo KB.
+- PLAYBOOK §11 — 6 nuove righe alla tabella anti-pattern (estrazione full-file
+  in memoria, bulk-load senza scan, testo non sanitizzato, no-retry 429,
+  `VACUUM FULL` senza misurare, loop copia-incolla per ops cloud).
 - PLAYBOOK §3b — breaking change Supabase 2026: la schema `public` non è più
   esposta al Data API di default (progetti nuovi dal 30 mag 2026, esistenti dal
   30 ott 2026). Spiega date, grant ≠ RLS, e la forma Nove C (`authenticated` +
