@@ -1,6 +1,12 @@
 # Changelog
 
-## Non rilasciato (post-v1.1)
+## v1.2 — 2026-05-31
+
+- Process: attivato sul repo il flag **"Automatically delete head branches"**
+  (Settings → General → Pull Requests). Dal merge di questa PR in poi ogni
+  branch sorgente di una PR squash-mergiata viene cancellato in automatico.
+- PLAYBOOK "Perimetro dei file": disclaimer che la tabella descrive il
+  layout dentro un repo-prodotto (doc sotto `docs/`), non il kit stesso.
 
 - **PLAYBOOK riordinato**: Parte D fisicamente contigua. Prima l'ordine
   era `§13-§24, §32, [Parte E §25-§31], §33, §34, §35, §36` (la metodologia
