@@ -2,6 +2,15 @@
 
 ## Non rilasciato (post-v1.1)
 
+- PLAYBOOK §35 — aggiunta sottosezione "Job lunghi e timeout: heartbeat commit
+  (non aspettare la fine)" + principio generale: ogni workflow auto-trigger
+  può non arrivare in fondo (timeout/cancel/runner killato), serve far
+  arrivare lo stato parziale al repo PRIMA, non DOPO. Scaffold
+  `snippets/ops-auto-commit-workflow.yml` riscritto con heartbeat
+  (commit ogni 60s in background + commit finale + `stdbuf -oL` per line-buffering).
+- PLAYBOOK §3d — tolto il "in promozione" come IOU: `pgvector`/`ingestion`/
+  `search-kb` restano nel repo KB. `REGOLE.md` prescrive due progetti reali
+  prima di promuovere; una sola implementazione non è ancora una regolarità.
 - PLAYBOOK §35 — nuovo pattern PM "Automazione ops via GitHub Actions +
   auto-commit log": ogni op cloud (psql, wrangler…) diventa un workflow che
   scrive l'output in un file del repo. Estende §24 "Notte autonoma" alle ops

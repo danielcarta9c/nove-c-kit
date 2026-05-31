@@ -1,6 +1,8 @@
 # ops-auto-commit-workflow.yml — Scheletro Nove C per workflow GitHub Actions
 # che esegue un'operazione cloud (psql, wrangler, ecc.) e auto-committa
-# l'output in un file del repo. Vedi PLAYBOOK §35 per il razionale.
+# l'output nel repo CON heartbeat periodico, così il progresso arriva in
+# tempo reale e un eventuale timeout NON cancella il log.
+# Vedi PLAYBOOK §35 per il razionale completo.
 #
 # Copia in `.github/workflows/<nome-ops>.yml` del tuo repo, sostituisci i
 # <placeholder>, e assicurati che i secret citati esistano in
@@ -23,12 +25,14 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
+    # Default 360 min sui runner free. Abbassalo per fail-fast:
+    # timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
           ref: main
 
-      - name: Esegui operazione e cattura output
+      - name: Esegui operazione con heartbeat commit
         env:
           # Sostituisci coi tuoi secret. Esempi:
           # PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
@@ -36,31 +40,57 @@ jobs:
           # CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           SEGRETO: ${{ secrets.SEGRETO }}
         run: |
-          set +e                        # non far fallire lo step prima di salvare il log
+          set +e
           mkdir -p ops/out
           TS=$(date -u +%Y%m%dT%H%M%SZ)
           OUT="ops/out/${TS}.log"
+          touch "$OUT"
 
-          # ====== sostituisci con il tuo comando ======
-          # Esempio psql verso Supabase (Session Pooler IPv4, porta 5432):
-          # psql -v ON_ERROR_STOP=1 \
-          #      -h aws-0-eu-central-1.pooler.supabase.com -p 5432 \
-          #      -U postgres.<project-ref> -d postgres \
-          #      -f sql/ops/<script>.sql > "$OUT" 2>&1
-          # Esempio wrangler:
-          # npx wrangler deploy > "$OUT" 2>&1
-          # ============================================
-
-          echo "# exit_code: $?" >> "$OUT"
-          cat "$OUT"
-
-      - name: Auto-commit del log
-        if: always()                   # commit anche su errore (l'errore è il log che vuoi leggere)
-        working-directory: .            # esplicito: se il job ha un default, il path raddoppia
-        run: |
           git config user.name "ops-bot"
           git config user.email "ops-bot@users.noreply.github.com"
+
+          # ------------------------------------------------------------------
+          # HEARTBEAT: ogni 60s pusha il log parziale, così il progresso
+          # arriva in tempo reale e un TIMEOUT/crash non cancella l'output.
+          # Per job certamente brevi (<2 min) commenta il blocco e tieni
+          # solo il commit finale in fondo. Vedi PLAYBOOK §35.
+          # ------------------------------------------------------------------
+          (
+            while sleep 60; do
+              git add ops/out/ 2>/dev/null
+              git diff --staged --quiet && continue
+              git commit -m "chore(ops): heartbeat $(date -u +%H:%M:%S) [skip ci]" 2>/dev/null
+              git pull --rebase origin main 2>/dev/null
+              git push origin main 2>/dev/null
+            done
+          ) &
+          HB_PID=$!
+          trap "kill $HB_PID 2>/dev/null" EXIT
+
+          # ====== sostituisci con il tuo comando ======
+          # IMPORTANTE: usa `>>` (append) e `stdbuf -oL` per line-buffering,
+          # altrimenti il file resta vuoto finché il programma non termina
+          # e il heartbeat non vede niente da committare.
+          #
+          # Esempio psql (Session Pooler IPv4, porta 5432):
+          # stdbuf -oL psql -v ON_ERROR_STOP=1 \
+          #      -h aws-0-eu-central-1.pooler.supabase.com -p 5432 \
+          #      -U postgres.<project-ref> -d postgres \
+          #      -f sql/ops/<script>.sql >> "$OUT" 2>&1
+          #
+          # Esempio wrangler:
+          # stdbuf -oL npx wrangler deploy >> "$OUT" 2>&1
+          # ============================================
+          EXIT_CODE=$?
+          echo "# exit_code: $EXIT_CODE" >> "$OUT"
+          cat "$OUT"
+
+          # Stop heartbeat + commit finale (cattura l'ultimo stato e l'exit_code).
+          kill $HB_PID 2>/dev/null
+          wait $HB_PID 2>/dev/null
           git add ops/out/
-          git diff --staged --quiet && exit 0   # niente da committare
-          git commit -m "chore(ops): autolog <nome-ops> [skip ci]"
-          git push origin main
+          if ! git diff --staged --quiet; then
+            git commit -m "chore(ops): autolog done exit=$EXIT_CODE [skip ci]"
+            git pull --rebase origin main 2>/dev/null
+            git push origin main
+          fi

@@ -384,12 +384,14 @@ emergenza si fanno dal telefono):
 Nuovo filone Nove C: fino a inizio 2026 i prodotti erano web-app sync; con
 la Knowledge Base studio è arrivato il primo "pipeline dati + RAG" —
 delta-sync da una sorgente esterna → estrazione testo → embedding →
-pgvector → retrieval via MCP. **Snippet completi in promozione** dal repo
-KB (vedi `REGOLE.md` "Workflow di promozione"): `snippets/pgvector-rag.sql`
-(schema documents/chunks + RPC `match_chunks` + indice HNSW),
-`snippets/ingestion-job.mjs` (delta-sync ripartibile),
-`mcp-template/tools/search-kb.example.mjs` (tool MCP che embedda la query e
-chiama l'RPC). Le **lezioni** sono già qui sotto.
+pgvector → retrieval via MCP. **Il codice di riferimento vive nel repo KB**:
+quando partirai un secondo progetto RAG, copia da lì e parametrizza.
+Niente snippet `pgvector`/`ingestion`/MCP `search-kb` nel kit per ora —
+`REGOLE.md` ("Workflow di promozione") vuole che un pattern entri qui
+**dopo aver maturato in almeno due progetti reali**, non uno: una sola
+implementazione non è ancora una regolarità. Le **lezioni** trasversali
+invece sono già qui sotto: sono ciò che chi inizia un RAG da zero rifarebbe
+sbagliando se non documentate.
 
 **Stima PRIMA, indicizza DOPO.** Bulk-load di un corpus senza stimare
 quanti chunk produrrà ti porta read-only senza preavviso (§3c). Modalità
@@ -2220,10 +2222,67 @@ imparate sul campo:
 - `working-directory: .` sullo step di commit se il job ne ha uno di
   default (altrimenti il path raddoppia: `mcp-server/mcp-server/out/`).
 - `[skip ci]` nel messaggio per non innescare altri workflow a catena.
-- `if: always()` così il log si committa anche quando il comando fallisce
-  (l'errore è proprio ciò che vuoi leggere).
 - `set +e` + cattura dell'exit code: non far fallire lo step prima di
   salvare l'output.
+- Append `>>` (non `>`) al log + `stdbuf -oL <comando>` per disattivare il
+  buffering: senza, il file resta vuoto finché il programma non termina e
+  il pattern heartbeat (sotto) non vede niente da committare.
+
+### Job lunghi e timeout: heartbeat commit (non aspettare la fine)
+
+**Principio generale.** Ogni workflow con auto-trigger può non arrivare in
+fondo: timeout (360 min di default sui runner free), cancel manuale, runner
+killato. Lo step di "commit finale" in quel caso **non parte mai**, il log
+muore col runner e tu (e l'agente) restate ciechi. Progetta l'auto-commit
+in modo che lo **stato parziale arrivi nel repo PRIMA** che il runner
+muoia, non dopo.
+
+**Sintomo concreto.** L'auto-commit solo a fine ha due problemi:
+1. Durante un ingest o un `VACUUM` da 30 min vedi 0 progresso: l'agente
+   non può diagnosticare in corsa, deve aspettare la fine.
+2. Se va in timeout, perdi TUTTO l'output del runner — niente diagnostica
+   post-mortem.
+
+**Pattern: heartbeat in background.** Una subshell che ogni 30-60s fa
+`git add → commit → push` del log parziale, in parallelo al comando vero:
+
+```bash
+set +e
+mkdir -p ops/out
+OUT="ops/out/$(date -u +%Y%m%dT%H%M%SZ).log"
+git config user.name "ops-bot"; git config user.email "ops-bot@users.noreply.github.com"
+
+(while sleep 60; do
+   git add ops/out/ 2>/dev/null
+   git diff --staged --quiet && continue
+   git commit -m "chore(ops): heartbeat $(date -u +%H:%M:%S) [skip ci]" 2>/dev/null
+   git pull --rebase origin main 2>/dev/null   # in caso di push concorrenti
+   git push origin main 2>/dev/null
+ done) &
+HB_PID=$!; trap "kill $HB_PID 2>/dev/null" EXIT
+
+# === comando vero (append continuo, line-buffered) ===
+stdbuf -oL <comando> >> "$OUT" 2>&1
+EXIT_CODE=$?
+echo "# exit_code: $EXIT_CODE" >> "$OUT"
+
+# stop heartbeat + commit finale (cattura l'ultimo stato + exit_code)
+kill $HB_PID 2>/dev/null; wait $HB_PID 2>/dev/null
+git add ops/out/
+git diff --staged --quiet || {
+  git commit -m "chore(ops): autolog done exit=$EXIT_CODE [skip ci]"
+  git pull --rebase origin main 2>/dev/null
+  git push origin main
+}
+```
+
+Lo scaffold in `snippets/` ha questa forma di default. Per job certamente
+brevi (<2 min) commenta il blocco heartbeat: un singolo commit finale basta.
+
+**Trade-off.** Heartbeat ogni 60s su un job di 30 min = ~30 commit nello
+storico di `main`. Il `[skip ci]` evita che ri-triggerino workflow → niente
+costo build (§34), solo rumore in `git log`. Se ti dà fastidio, alza
+l'intervallo (180s) o committa solo quando l'output cresce di N righe.
 
 ### Verifica la catena PRIMA di fidartene (self-test `on: push`)
 
