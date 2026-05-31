@@ -2,6 +2,32 @@
 
 ## Non rilasciato (post-v1.1)
 
+- PLAYBOOK §36 (nuova, Parte D) — "Profilazione del PM e calibrazione
+  dell'autonomia": 4 domande di profilo + 5 regole derivate (porta solo
+  decisioni di prodotto, intuizioni del non-tecnico verificate nel codice,
+  autonomia sul rischio non sul ruolo, autorizzazioni a tempo).
+- AGENT_BOOTSTRAP — nuova sezione "Profilo del PM (Daniel) e calibrazione
+  dell'autonomia" subito dopo "Identità": template operativo del §36, con
+  cosa portare al PM, cosa NO, cosa fare da solo, cosa NO.
+- PLAYBOOK §32.5 (nuova) — "Handoff di fine sessione": sintomi di contesto
+  saturo (tool che non caricano, ripetizioni), il deliverable HANDOFF.md
+  in 4 sezioni, da referenziare come prima lettura del prossimo turno.
+- `templates/HANDOFF.md` — skeleton del documento di handoff.
+- PLAYBOOK §35 — nuova sottosezione "Trappole silenziose" con le 2 cause-
+  radice verificate sul campo (`*.log` nel `.gitignore` ingoia i log; `git
+  push` rifiutato per `main` avanzato → `pull --rebase --autostash` + retry
+  3x); nuovo 4° limite onesto (runner free = 1 job concorrente); ripristinato
+  bullet `if: always()` ora che lo scaffold ha due step.
+- `snippets/ops-auto-commit-workflow.yml` — struttura a 2 step: run con
+  heartbeat (commit ogni 60s + `push_with_retry`) + step `if: always()`
+  finale come rete (belt-and-braces).
+- PLAYBOOK §11 — 3 nuove righe anti-pattern (`*.log` gitignored che ingoia
+  i log ops, push bot rifiutato per main avanzato, cache cTag/eTag dove
+  `eTag` cambia anche solo spostando il file).
+- PLAYBOOK §3d — corretta la regola: `REGOLE.md` vuole "1-2 sprint di
+  maturità in produzione su un caso reale", **una sola implementazione
+  basta** (avevo scritto "almeno due", troppo stretto per uno studio
+  piccolo dove i filoni rari non vedranno mai un secondo caso).
 - PLAYBOOK §35 — aggiunta sottosezione "Job lunghi e timeout: heartbeat commit
   (non aspettare la fine)" + principio generale: ogni workflow auto-trigger
   può non arrivare in fondo (timeout/cancel/runner killato), serve far

@@ -84,6 +84,7 @@ Quando in un repo Nove C apri un file, queste sono le responsabilità.
 33. [Design discovery prima di codice (mockup HTML statici)](#33-design-discovery-prima-di-codice)
 34. [Parsimonia su build credits CI/CD (batch grandi, push singoli)](#34-parsimonia-su-build-credits)
 35. [Automazione ops via GitHub Actions + auto-commit log](#35-automazione-ops-via-github-actions--auto-commit-log)
+36. [Profilazione del PM e calibrazione dell'autonomia](#36-profilazione-del-pm-e-calibrazione-dellautonomia)
 
 **Parte E — Snippet riusabili** (copia-incolla, già testati in produzione):
 
@@ -384,14 +385,15 @@ emergenza si fanno dal telefono):
 Nuovo filone Nove C: fino a inizio 2026 i prodotti erano web-app sync; con
 la Knowledge Base studio è arrivato il primo "pipeline dati + RAG" —
 delta-sync da una sorgente esterna → estrazione testo → embedding →
-pgvector → retrieval via MCP. **Il codice di riferimento vive nel repo KB**:
-quando partirai un secondo progetto RAG, copia da lì e parametrizza.
-Niente snippet `pgvector`/`ingestion`/MCP `search-kb` nel kit per ora —
-`REGOLE.md` ("Workflow di promozione") vuole che un pattern entri qui
-**dopo aver maturato in almeno due progetti reali**, non uno: una sola
-implementazione non è ancora una regolarità. Le **lezioni** trasversali
-invece sono già qui sotto: sono ciò che chi inizia un RAG da zero rifarebbe
-sbagliando se non documentate.
+pgvector → retrieval via MCP. **Il codice di riferimento vive nel repo
+KB**; quando partirai un nuovo progetto RAG copia da lì e parametrizza,
+oppure **promuovi gli snippet qui appena la KB è stabilizzata in
+produzione** — `REGOLE.md` ("Workflow di promozione") vuole **1-2 sprint
+di maturità in produzione su un caso reale**, una sola implementazione
+basta (in uno studio piccolo i pattern di filoni rari non vedranno mai un
+secondo caso prima che servano). Niente schema/codice nel kit per ora —
+le **lezioni** trasversali sono già qui sotto: sono ciò che chi inizia un
+RAG da zero rifarebbe sbagliando se non documentate.
 
 **Stima PRIMA, indicizza DOPO.** Bulk-load di un corpus senza stimare
 quanti chunk produrrà ti porta read-only senza preavviso (§3c). Modalità
@@ -739,6 +741,9 @@ Non rifare questi, ognuno ci è costato almeno mezza giornata:
 | Chiamate API embedding senza retry sul rate limit | 429 TPM (OpenAI) → file persi silenziosamente | Retry con backoff che rispetta il `try again in Xs` del provider (è nel body della 429). Vedi §3d |
 | `VACUUM FULL` lanciato senza misurare dead tuples | Ore di lock per zero spazio recuperato (i vettori sono nel TOAST, non bloat) | `pg_stat_user_tables.n_dead_tup` PRIMA; usa `pg_total_relation_size` per il "vero" peso. Vedi §3c |
 | Loop umano-AI di copia-incolla per ops cloud da telefono | Ore perse, errori da caratteri mangiati (`<=>`, `.id`), zero notte autonoma | Workflow GitHub Actions con auto-commit log: l'AI legge gli esiti via `git pull`. Vedi §35 |
+| `*.log` nel `.gitignore` quando il workflow ops scrive output in `.log` | Workflow auto-commit "funziona" ma `git add` non vede nulla → `nothing to commit`, log mai pushati, ore perse a cercare un bug inesistente | Eccezione esplicita dopo `*.log`: `!sql/ops/out/`, `!mcp-server/out/`. Verifica con `git check-ignore <path>`. Vedi §35 |
+| `git push` del bot ops mentre `main` avanza durante il job | `! [rejected] fetch first`, log persi, nessun log nel repo nonostante il workflow sia girato | Nello step di commit: `git pull --rebase --autostash` + retry 3x prima del push. + regola di condotta: non committare su `main` durante un job lungo. Vedi §35 |
+| Cache di operazioni costose (OCR, embedding) keyed sull'`eTag` di Microsoft Graph | `eTag` cambia anche solo spostando il file → OCR/embedding rifatti **ogni notte** sui contenuti invariati, costo a pagamento per nulla | Usa il segnale "contenuto cambiato" (Graph `cTag`, hash del binario) come chiave di cache, non identificatori di metadato. Vedi §3d |
 
 ---
 
@@ -1382,6 +1387,31 @@ Worker Cloudflare · Repo GitHub) con tutti i fatti operativi.
 > Netlify?", il PM ha giustamente reagito "ma siamo live da giorni, perché
 > non lo sai?". Fix: questa sezione + la sezione "Ambienti live" in
 > `PROJECT_STATE.md`. Vedi commit del 23 maggio 2026 nel Done log.
+
+### 32.5 Handoff di fine sessione (quando il contesto si satura)
+
+**Sintomi di contesto saturo**: tool che improvvisamente non si caricano
+più, errori su operazioni semplici (un `Edit` che fallisce su un file già
+letto, una grep che salta righe), ripetizioni di domande già risposte,
+perdita del filo logico fra due risposte adiacenti. A quel punto **non
+iniziare nuovi blocchi di lavoro**: consegna e fermati.
+
+**Il deliverable**: un file `HANDOFF.md` nel repo (template in
+`nove-c-kit/templates/HANDOFF.md`) con quattro sezioni:
+1. **Stato attuale** — 3-5 righe: dove siamo arrivati, cosa funziona, cosa
+   no.
+2. **Lavori aperti** — col dettaglio tecnico necessario per riprenderli:
+   cosa serve fare, dove vive nel codice, cosa NON è ancora stato fatto e
+   perché.
+3. **Cosa NON rifare** — insidie e strade morte già esplorate. Salva
+   tempo al prossimo Claude (o al PM stesso quando rilegge).
+4. **Profilo del PM residuo** — cosa abbiamo imparato in questa sessione
+   che vale per le prossime: lessico, preferenze, soglie di autonomia
+   confermate o riviste (vedi §36).
+
+`HANDOFF.md` va referenziato come **prima lettura** nel `CLAUDE.md` (sopra
+al `PROJECT_STATE.md`) finché il PM o il nuovo Claude lo "consumano" e
+fanno repulisti.
 
 ---
 
@@ -2174,6 +2204,11 @@ L'AI non vede mai un secret ma può orchestrare e leggere esiti.
 3. **Copre solo ciò che il runner raggiunge coi secret presenti.** `psql`
    verso Postgres e `wrangler` verso Cloudflare sì; sorgenti dietro auth
    interattive (un tenant M365 con consensi) possono restare fuori.
+4. **Runner free = 1 job concorrente per repo.** Non puoi "spiare" con un
+   push diagnostico mentre un job lungo gira: il secondo resta in coda.
+   La sonda funziona **tra** i job, non **durante**. → l'unico canale di
+   visibilità durante un run lungo è l'heartbeat-commit del run stesso
+   (vedi sotto).
 
 ### Setup dei secret (minimo privilegio)
 
@@ -2215,6 +2250,34 @@ password/token/chiavi sono segreti.
   utenti OAuth perdono il consenso. Metti l'id reale nel `wrangler.toml`
   committato PRIMA di deployare da CI.
 
+### Trappole silenziose (il workflow "funziona" ma non lascia traccia)
+
+Due cause-radice **vissute sul campo**: fanno fallire l'auto-commit in
+silenzio — il run sembra ok ma in `main` non arriva nulla, e perdi ore a
+cercare il bug nel posto sbagliato.
+
+**1. `*.log` nel `.gitignore` ingoia tutti i log.** È naturale chiamare
+l'output `<ts>.log`, ed è naturale che il `.gitignore` di progetto abbia la
+riga `*.log`. Risultato: `git add` non vede mai il file, `nothing to
+commit`, log mai pushati. Fix: eccezione esplicita **dopo** `*.log`:
+```
+*.log
+!sql/ops/out/
+!sql/ops/out/**
+!mcp-server/out/
+!mcp-server/out/**
+```
+Verifica con `git check-ignore <path>` prima di fidarti.
+
+**2. `git push` del bot rifiutato se `main` avanza durante il job.** Se
+durante un job lungo qualcuno (umano o altro workflow) committa su `main`,
+il push finale del bot va in `! [rejected] fetch first`: il `main` locale
+del runner è vecchio. Doppio fix:
+- Nello step di commit: `git pull --rebase --autostash origin main` +
+  **retry 3x** prima del `git push` (lo scaffold lo fa già).
+- **Regola di condotta**: non committare su `main` mentre un job `on:push`
+  o un re-ingest lungo gira. Aspetta che finisca.
+
 ### Lo scheletro del workflow
 
 Scaffold pronto in **`snippets/ops-auto-commit-workflow.yml`**. Note dure
@@ -2227,6 +2290,11 @@ imparate sul campo:
 - Append `>>` (non `>`) al log + `stdbuf -oL <comando>` per disattivare il
   buffering: senza, il file resta vuoto finché il programma non termina e
   il pattern heartbeat (sotto) non vede niente da committare.
+- **Doppio step di commit con `if: always()`** sul secondo: belt-and-braces.
+  Lo step principale tenta il commit alla fine; se aborta (bash crash, OOM,
+  exit prematuro) lo step `if: always()` ripete add/commit/push come ultima
+  rete. Heartbeat copre il runner-kill mid-step; `if: always()` copre il
+  bash-crash dello step.
 
 ### Job lunghi e timeout: heartbeat commit (non aspettare la fine)
 
@@ -2325,6 +2393,81 @@ trasformarlo in workflow + auto-commit log?** Se sì, fallo subito: il costo
 di setup si ripaga al secondo giro. Nella sessione KB ci siamo accorti
 **tardi** che era possibile: ore di copia-incolla manuale che, con il
 pattern attivo, sarebbero state un loop autonomo notturno.
+
+---
+
+## 36. Profilazione del PM e calibrazione dell'autonomia
+
+**Il problema osservato.** L'agente, di default, tratta il PM come un pari
+tecnico: gli chiede di scegliere il *come* (quale lato di un conflitto git
+tenere, quale algoritmo, quale encoding). Ma il PM dei progetti Nove C è
+quasi sempre un **PM-builder non-developer** — capisce come ragiona una
+macchina (Daniel: termotecnica + BIM) ma **non legge codice né diff/log**.
+Le domande tecniche lo bloccano: la sua risposta sarà sempre "risolvi tu",
+con costo di latenza e di fiducia ("perché mi stai chiedendo questo?").
+
+**Il pattern.** All'inizio di ogni progetto si compila un **Profilo del
+PM** in `CLAUDE.md` (template in `AGENT_BOOTSTRAP.md` → "Profilo del PM").
+Dalle risposte derivano regole di comunicazione e di autonomia. Vale per
+OGNI progetto, va fatto **giorno 1**.
+
+### Le 4 domande di profilo
+
+1. **Background**: developer, semi-tecnico (capisce architetture ma non
+   legge codice), o non-tecnico? Da quale dominio vengono le sue intuizioni
+   migliori (impianti, business, design, finance, legale)?
+2. **Canale principale**: legge dal **telefono** o dal **PC**? La
+   lunghezza delle risposte è calibrata di conseguenza.
+3. **Granularità sul "come"**: vuole entrare nei dettagli tecnici, vuole
+   solo l'esito, o decide caso per caso quando l'agente propone tradeoff
+   espliciti?
+4. **Tolleranza al rischio**: per le ops reversibili (commit ops,
+   pull-rebase, risolvere conflitti **sui log**) l'agente può procedere da
+   solo? E per quelle distruttive (force push, DROP, merge di codice) si
+   ferma sempre?
+
+### Le 5 regole che ne derivano
+
+1. **Porta al PM solo decisioni che sa valutare**: business, costi (€),
+   scope, priorità, rischio operativo. **NON il "come" tecnico** — quello
+   lo decide l'agente da senior. Se rischioso, lo **spiega a parole sue**;
+   mai diff/log/stack-trace incollati a chi non li legge.
+2. **Le intuizioni del non-tecnico vanno prese sul serio e verificate nel
+   codice**, non liquidate. Spesso colgono un problema reale prima
+   dell'agente (caso KB: il PM ha fiutato il bug dell'`eTag` che cambia
+   spostando un file, e il rischio "OCR rifatto ogni notte sui contenuti
+   non cambiati" — entrambi confermati nel codice).
+3. **Autonomia calibrata sul RISCHIO, non sul ruolo.** Reversibile (commit
+   ops, pull-rebase, conflitti su log) → fai. Decisione di prodotto o
+   rischio di perdita silenziosa (merge PR di codice, conflitti su
+   codice/SQL, distruttivo) → fermati e chiedi.
+4. **Niente domande sul "come"** se non quando il PM ha le competenze per
+   sceglierne uno (domanda 3). Default: decidi da senior, dichiara *"ho
+   scelto X perché Y, alternativa scartata Z"*.
+5. **Autorizzazioni a tempo.** Il PM può dare via libera estesa "per
+   questa sessione" o "fino a obiettivo X" (es. *"procedi anche coi
+   distruttivi fino al deploy"*). L'agente la onora **fino al termine
+   dell'obiettivo**, poi torna alle regole base.
+
+### Relazione con altre sezioni
+
+- **§23 "Stile di comunicazione"**: questo profilo è il dato concreto da
+  cui §23 diventa azionabile. *"PM-to-PM"* non significa "tratti il PM come
+  dev"; vuol dire **al livello giusto** per quel PM.
+- **§24 "Notte autonoma"**: l'autonomia calibrata sul rischio è il
+  fondamento della notte autonoma. Senza profilo, l'agente o chiede troppo
+  (sblocchi continui) o agisce troppo (rischi silenziosi).
+- **§35 "Ops via Actions"**: idem — l'autonomia sulle ops va calibrata in
+  base a quanto il PM si fida del runner + auto-commit.
+- **`AGENT_BOOTSTRAP` → "Profilo del PM"**: il template operativo.
+
+### Perché vale per OGNI progetto Nove C
+
+I progetti Nove C nascono con un PM-builder al timone, raramente
+developer. Senza profilazione, ogni nuovo progetto rifa da zero il giro di
+"come si parla a questo PM" sprecando i primi giorni in domande
+sbagliate. Codificarlo qui + nel `AGENT_BOOTSTRAP` fa partire ogni
+progetto col piede giusto.
 
 ---
 

@@ -9,6 +9,7 @@ specifica del progetto e non hanno uno scheletro che valga la pena committare.
 |------|--------------|----------------------|
 | `PROJECT_STATE.md` | `PROJECT_STATE.md` (root del nuovo repo) | §16 + §32 |
 | `adr-template.md` | `docs/adr/000N-<slug>.md` | §18 |
+| `HANDOFF.md` | `HANDOFF.md` (root del repo, a fine sessione satura) | §32.5 |
 
 > Il template di `CLAUDE.md` non sta qui: è `AGENT_BOOTSTRAP.md` nella root del
 > kit (la "lettera al Claude della prima sessione", da copiare e personalizzare).
