@@ -224,7 +224,7 @@ async function handleConsent(req, env) {
 
 **Regola Nove C**: HTTP per il prodotto, stdio per dev locale.
 
-### Riferimenti file (nello Scadenzario)
+### Riferimenti interni (repo Scadenzario, privato)
 
 - Implementazione: `mcp-server/worker.mjs`
 - Dispatcher condiviso stdio+HTTP: `mcp-server/mcp-dispatcher.mjs`
@@ -849,13 +849,13 @@ Il PM giudica i mockup *prima* di approvare l'implementazione. Cambiare
 una palette su 3 HTML statici è 10 minuti; cambiarla su 25 KB di CSS già
 applicato è 2 giorni di refactor. Vedi §33 per la metodologia.
 
-### Riferimenti file (Scadenzario)
+### Riferimenti interni (repo Scadenzario, privato)
 
 - `docs/design-discovery/DESIGN_LANGUAGE_v1.md` — documento di v1
 - `docs/design-discovery/mockup-{01,02,03}-*.html` — i 3 mockup approvati
-- `index.html:62` — tokens `:root` con `--brand-teal/-navy/-orange` aliasati
+- `index.html` — tokens `:root` con `--brand-teal/-navy/-orange` aliasati
   verso `--accent/-text/-bg/-warning` per swap istantaneo in tutta l'app
-- `index.html:1812` — pattern brand v2 (section-card, toggle iOS, select-row,
+- `index.html` — pattern brand v2 (section-card, toggle iOS, select-row,
   hero-avatar, stat-card) come componenti CSS riusabili
 - `index.html` head — Google Fonts Libre Baskerville + Raleway
 
@@ -988,8 +988,9 @@ primo**. Apri i documenti in quest'ordine:
 
 1. Apri `index.html` vuoto. Crea i 4 blocchi base: CONFIG, STATE, BLOCK 1
    (sync engine), BLOCK 2 (auth).
-2. Copia da questo Playbook gli snippet della Parte E (`markDirty` §25,
-   `handleRemoteChange` §26, audit log §27).
+2. Copia dagli snippet del kit (`nove-c-kit/snippets/markDirty-saveNow.mjs`,
+   `handleRemoteChange.mjs`, `audit-log.mjs`). La Parte E del Playbook
+   descrive il razionale (§25, §26, §27).
 3. Crea `test/setup.mjs` (vedi §31) + un primo test di smoke
    `test/01-base-flow.mjs`.
 4. **Primo commit**, primo push, prima entry in `PROJECT_STATE.md` Done log.
@@ -1415,621 +1416,6 @@ fanno repulisti.
 
 ---
 
-# Parte E — Snippet riusabili
-
-> I template che seguono sono **estratti dal codice reale dello Scadenzario**,
-> già testati in produzione. Copia-incolla nel prodotto numero 2.
-> Riferimento `file:riga` come "vedi esempio originale".
-
-> **Copia canonica sterilizzata → `nove-c-kit` (repo pubblico)**
-> Gli snippet di questa Parte E + lo scheletro MCP della §30 vivono anche,
-> in versione **parametrizzata e dominio-free**, nel kit pubblico
-> [`danielcarta9c/nove-c-kit`](https://github.com/danielcarta9c/nove-c-kit).
-> Un Claude di un altro progetto può recuperarli senza accesso a questo repo
-> via `raw.githubusercontent.com/danielcarta9c/nove-c-kit/main/<path>`.
-> Gli snippet qui sotto restano la versione "caso di studio" (con i nomi reali
-> Scadenzario, leggibile offline); il kit è la versione "pronta da clonare".
-> **Copia, non importare** (vedi `nove-c-kit/README.md`).
->
-> | Sezione | File nel kit |
-> |---------|---------------------|
-> | §25 markDirty/saveNow | `snippets/markDirty-saveNow.mjs` |
-> | §26 handleRemoteChange | `snippets/handleRemoteChange.mjs` |
-> | §27 audit log | `snippets/audit-log.mjs` |
-> | §28 soft delete + RLS | `snippets/multi-tenant-audit-soft-delete.sql` |
-> | §29 attachKanDrag | `snippets/attachKanDrag.mjs` |
-> | §30 Worker MCP skeleton | `mcp-template/` (intera cartella) |
-> | §31 bootHarness | `snippets/bootHarness.mjs` |
-
-## 25. `markDirty` + `saveNow` + `isPlaceholder`
-
-Pattern: l'utente modifica state → marchiamo "dirty" + schedulato debounced
-350ms → un solo round di upsert al cloud, batched, **mai sui placeholder**.
-
-Vedi `index.html:1818-1864` per la versione live.
-
-```js
-const PLACEHOLDER_ID_REGEX = /^(new|temp|placeholder)[-_:]/i;
-const isPlaceholder = obj => !obj || !obj.id || PLACEHOLDER_ID_REGEX.test(obj.id);
-
-function debounce(fn, ms) {
-  let t = null;
-  return (...args) => {
-    if (t) clearTimeout(t);
-    t = setTimeout(() => { t = null; fn(...args); }, ms);
-  };
-}
-
-function markDirty(opts) {
-  state.dirty = true;
-  if (!state._dirty) {
-    state._dirty = { records: new Set(), all: false };
-  }
-  if (opts?.recordId) state._dirty.records.add(opts.recordId);
-  else state._dirty.all = true;
-  setStatus("dirty", "Salvataggio…");
-  scheduleSave();
-}
-
-const scheduleSave = debounce(saveNow, 350);
-
-async function saveNow() {
-  if (state.saving || !state._dirty) return;
-  state.saving = true;
-  setStatus("dirty", "Salvataggio…");
-  try {
-    let toUpsert;
-    if (state._dirty.all) {
-      toUpsert = state.data.records.filter(r => !isPlaceholder(r));
-    } else {
-      toUpsert = [...state._dirty.records]
-        .map(id => state.data.records.find(r => r.id === id))
-        .filter(r => r && !isPlaceholder(r));
-    }
-    if (toUpsert.length) await cloudUpsertBatch(toUpsert);
-    state._dirty = { records: new Set(), all: false };
-    state.dirty = false;
-    setStatus("ok", "Sincronizzato");
-  } catch (e) {
-    console.error(e);
-    setStatus("err", "Errore sync");
-    toast("Errore sincronizzazione: " + (e.message || e), 4000);
-  } finally {
-    state.saving = false;
-  }
-}
-```
-
-**Punti chiave**:
-- `state.dirty` boolean per UI (banner "salvataggio…"), `state._dirty` per logica.
-- Doppia modalità: per id specifici (efficiente) o full batch (fallback).
-- **Sempre** filtro `isPlaceholder` prima di upsertare. **Mai dimenticarlo**:
-  un placeholder pushato sul cloud diventa un record fantasma indistruttibile.
-- `try/finally` rilascia `state.saving` anche su errore.
-
-## 26. `handleRemoteChange` con self-echo skip
-
-Pattern realtime: il server pusha una modifica → noi aggiorniamo state
-**preservando i riferimenti** (`Object.assign`, mai assegnamento) e
-**saltando self-echo** se l'utente sta editando proprio quel record.
-
-Vedi `index.html:1986-2016` per la versione live.
-
-```js
-function handleRemoteChange(table, payload) {
-  if (table === "records") {
-    if (payload.eventType === "DELETE") {
-      state.data.records = state.data.records.filter(r => r.id !== payload.old.id);
-    } else {
-      const row = payload.new;
-      // Self-echo: l'utente sta editando proprio questo record.
-      // Ignora: il prossimo saveNow() riallineerà comunque.
-      if (state.selectedId === row.id) return;
-      const idx = state.data.records.findIndex(r => r.id === row.id);
-      if (idx >= 0) {
-        // CRITICO: Object.assign muta in-place, preserva i ref dei form.
-        // MAI state.data.records[idx] = row → form scollegato (bug v6.0.2 CRM).
-        Object.assign(state.data.records[idx], row);
-      } else {
-        state.data.records.unshift(row);
-      }
-    }
-  }
-  renderAll();
-}
-
-// Subscription:
-const channel = sb
-  .channel("records-realtime")
-  .on("postgres_changes",
-      { event: "*", schema: "public", table: "records" },
-      payload => handleRemoteChange("records", payload))
-  .subscribe();
-```
-
-**Punti chiave**:
-- `Object.assign(existing, row)` — **mai** riassegnare l'oggetto.
-- Self-echo skip su `state.selectedId === row.id`.
-- DELETE è gestito a parte (rimozione array).
-- INSERT inietta in cima per visibilità (`unshift`); cambia se vuoi ordine diverso.
-
-## 27. Audit log batched (client + SQL)
-
-Pattern: ogni operazione CUD logga un evento → coda in memoria → flush ogni
-2 secondi in background → **mai blocca** l'UI.
-
-### Tabella SQL
-
-```sql
-CREATE TABLE IF NOT EXISTS audit_log (
-  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id uuid NOT NULL REFERENCES workspaces(id),
-  actor_id    uuid REFERENCES auth.users(id),  -- null se sistema o MCP server
-  action      text NOT NULL,                    -- 'create', 'update', 'delete', 'login', 'backup_export', ...
-  entity_type text,                              -- 'utente', 'ordine', 'documento', 'template', ...
-  entity_id   uuid,                              -- nullable: alcune azioni non hanno entità singola
-  payload     jsonb,                             -- diff, snapshot, o context
-  created_at  timestamptz NOT NULL DEFAULT now()
-);
-
-ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY audit_log_workspace_select ON audit_log
-  FOR SELECT TO authenticated
-  USING (workspace_id = current_workspace_id());
-
-CREATE POLICY audit_log_workspace_insert ON audit_log
-  FOR INSERT TO authenticated
-  WITH CHECK (workspace_id = current_workspace_id());
-
-CREATE INDEX audit_log_workspace_created_idx ON audit_log(workspace_id, created_at DESC);
-CREATE INDEX audit_log_entity_idx ON audit_log(entity_type, entity_id);
-```
-
-### Client batched (fire-and-forget)
-
-```js
-const auditQueue = [];
-let auditTimer = null;
-
-function logAudit(action, entityType, entityId, payload) {
-  auditQueue.push({
-    workspace_id: state.currentWorkspaceId,
-    actor_id: state.user?.id || null,
-    action,
-    entity_type: entityType || null,
-    entity_id: entityId || null,
-    payload: payload || null,
-  });
-  if (!auditTimer) auditTimer = setTimeout(flushAudit, 2000);
-}
-
-async function flushAudit() {
-  auditTimer = null;
-  if (!auditQueue.length || !sb) return;
-  const batch = auditQueue.splice(0);
-  try {
-    await sb.from("audit_log").insert(batch);
-  } catch (e) {
-    console.warn("audit log flush failed", e);
-    // Re-enqueue se vuoi retry; oppure accetta la perdita (audit ≠ critico).
-  }
-}
-
-window.addEventListener("beforeunload", () => {
-  if (auditQueue.length && sb) {
-    // Best-effort sync su tab close: usa sendBeacon se l'endpoint REST lo supporta.
-    sb.from("audit_log").insert(auditQueue.splice(0));
-  }
-});
-```
-
-**Punti chiave**:
-- **Fire-and-forget**: l'audit non deve mai bloccare l'utente.
-- Batch ogni 2s: 1 INSERT con 20 righe è meglio di 20 INSERT.
-- `actor_id` nullable: scritture da MCP server o cron job non hanno utente loggato.
-- `payload` JSONB: ci metti dentro quello che serve (diff, snapshot, motivo).
-- `beforeunload` per non perdere gli ultimi eventi su chiusura tab.
-
-## 28. Soft delete + RLS workspace-scoped (SQL)
-
-Pattern: ogni tabella business ha `workspace_id` + `deleted_at`. RLS
-filtrano automaticamente per workspace dell'utente e nascondono i
-soft-deleted.
-
-```sql
--- 1. Tabelle infrastrutturali (workspace + membership)
-
-CREATE TABLE IF NOT EXISTS workspaces (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  nome text NOT NULL,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-
-INSERT INTO workspaces (id, nome) VALUES
-  ('00000000-0000-0000-0000-000000000001', 'Default')
-ON CONFLICT (id) DO NOTHING;
-
-CREATE TABLE IF NOT EXISTS workspace_members (
-  workspace_id uuid REFERENCES workspaces(id) ON DELETE CASCADE,
-  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
-  ruolo text NOT NULL DEFAULT 'member',
-  PRIMARY KEY (workspace_id, user_id)
-);
-
--- 2. Funzione per leggere il workspace dell'utente loggato
-
-CREATE OR REPLACE FUNCTION current_workspace_id()
-RETURNS uuid
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT workspace_id
-  FROM workspace_members
-  WHERE user_id = auth.uid()
-  LIMIT 1;
-$$;
-
--- 3. Pattern per ogni tabella business (esempio: records)
-
-CREATE TABLE IF NOT EXISTS records (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id uuid NOT NULL REFERENCES workspaces(id)
-    DEFAULT '00000000-0000-0000-0000-000000000001',
-  -- ... campi business ...
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  deleted_at timestamptz NULL    -- soft delete
-);
-
-ALTER TABLE records ENABLE ROW LEVEL SECURITY;
-
--- Policy SELECT: solo workspace dell'utente, escludi soft-deleted
-CREATE POLICY records_select ON records
-  FOR SELECT TO authenticated
-  USING (workspace_id = current_workspace_id() AND deleted_at IS NULL);
-
--- Policy INSERT: solo nel proprio workspace
-CREATE POLICY records_insert ON records
-  FOR INSERT TO authenticated
-  WITH CHECK (workspace_id = current_workspace_id());
-
--- Policy UPDATE: solo nel proprio workspace; permette anche soft-delete
-CREATE POLICY records_update ON records
-  FOR UPDATE TO authenticated
-  USING (workspace_id = current_workspace_id())
-  WITH CHECK (workspace_id = current_workspace_id());
-
--- Niente policy DELETE: si usa soft-delete via UPDATE deleted_at = now()
-```
-
-**Punti chiave**:
-- `DEFAULT '00000000-0000-0000-0000-000000000001'` sul workspace così l'app
-  single-tenant funziona senza ricordarsi di settarlo.
-- `SECURITY DEFINER` su `current_workspace_id()` per saltare RLS sul
-  lookup membership (altrimenti loop).
-- **Mai** policy DELETE: l'app fa solo UPDATE `deleted_at`. La policy SELECT
-  esclude i deleted automaticamente.
-- Index su `(workspace_id, deleted_at)` se il filtro diventa lento.
-
-Esempio reale in produzione: `sql/04-multi-tenant-audit-soft-delete.sql`.
-
-## 29. `attachKanDrag` — drag touch iOS
-
-Pattern: drag&drop tra colonne Kanban che funziona su iPhone Safari
-**senza rompere** lo scroll di pagina.
-
-Vedi `index.html:2121` per la versione live.
-
-```html
-<style>
-  .card { touch-action: auto; }              /* default: scroll normale */
-  .card.is-dragging { touch-action: none; }   /* solo durante drag */
-</style>
-```
-
-```js
-function attachKanDrag(card, onDrop, opts = {}) {
-  const isTouch = "ontouchstart" in window;
-  let dragging = false;
-  let startX = 0, startY = 0;
-  let ghost = null;
-
-  function onStart(e) {
-    const pt = isTouch ? e.touches[0] : e;
-    startX = pt.clientX; startY = pt.clientY;
-    // Aspetta soglia di 8px per distinguere tap da drag
-  }
-
-  function onMove(e) {
-    const pt = isTouch ? e.touches[0] : e;
-    const dx = pt.clientX - startX, dy = pt.clientY - startY;
-    if (!dragging) {
-      if (Math.hypot(dx, dy) < 8) return;  // ancora tap
-      dragging = true;
-      card.classList.add("is-dragging");
-      ghost = card.cloneNode(true);
-      ghost.classList.add("drag-ghost");
-      document.body.appendChild(ghost);
-    }
-    if (isTouch) e.preventDefault();  // blocca scroll SOLO durante drag
-    ghost.style.left = pt.clientX + "px";
-    ghost.style.top = pt.clientY + "px";
-  }
-
-  function onEnd(e) {
-    if (dragging) {
-      const pt = isTouch ? e.changedTouches[0] : e;
-      const target = document.elementFromPoint(pt.clientX, pt.clientY);
-      const column = target?.closest(".kan-column");
-      if (column) onDrop(card, column);
-    }
-    cleanup();
-  }
-
-  function cleanup() {
-    dragging = false;
-    card.classList.remove("is-dragging");
-    if (ghost) { ghost.remove(); ghost = null; }
-  }
-
-  if (isTouch) {
-    // CRITICO: { passive: false } altrimenti preventDefault non funziona
-    card.addEventListener("touchstart", onStart, { passive: false });
-    card.addEventListener("touchmove", onMove, { passive: false });
-    card.addEventListener("touchend", onEnd);
-    card.addEventListener("touchcancel", cleanup);
-  } else {
-    card.addEventListener("mousedown", onStart);
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onEnd);
-  }
-}
-```
-
-**Punti chiave**:
-- `touch-action: auto` di default, `none` SOLO quando `.is-dragging`.
-- `{passive: false}` obbligatorio sui listener touch, altrimenti
-  `preventDefault()` è no-op (Safari iOS).
-- Soglia 8px prima di considerare "drag": distingue tap accidentali.
-- `elementFromPoint` per trovare il bersaglio sotto il dito al rilascio.
-
-## 30. `OAuthProvider` Worker MCP skeleton
-
-Vedi §1 per il razionale e `mcp-server/worker.mjs` per la versione live
-con tutti i tool. Qui il **minimo** per un MCP server HTTP con OAuth 2.1 + DCR.
-
-### `wrangler.toml`
-
-```toml
-name = "<nome-progetto>-mcp"
-main = "worker.mjs"
-compatibility_date = "2025-01-01"
-
-[[kv_namespaces]]
-binding = "OAUTH_KV"
-id = "PLACEHOLDER_SOSTITUISCI"
-
-# Secrets via `npx wrangler secret put NOME`:
-# - MCP_AUTH_TOKEN     (consent password)
-# - BACKEND_URL        (es. Supabase project URL)
-# - BACKEND_SECRET_KEY (es. Supabase Secret)
-```
-
-### `worker.mjs`
-
-```js
-import { OAuthProvider } from "@cloudflare/workers-oauth-provider";
-import { dispatchMCP } from "./mcp-dispatcher.mjs";
-
-const oauth = new OAuthProvider({
-  apiRoute: "/mcp",
-  apiHandler: { fetch: handleMCP },
-  defaultHandler: { fetch: handleHTTP },
-  authorizeEndpoint: "/authorize",
-  tokenEndpoint: "/token",
-  clientRegistrationEndpoint: "/register",
-});
-
-export default {
-  fetch: (req, env, ctx) => oauth.fetch(req, env, ctx),
-};
-
-async function handleMCP(req, env, ctx) {
-  const body = await req.json();
-  const client = makeBackendClient(env);
-  const result = await dispatchMCP(body, client);
-  return new Response(JSON.stringify(result), {
-    headers: { "content-type": "application/json" },
-  });
-}
-
-async function handleHTTP(req, env, ctx) {
-  const url = new URL(req.url);
-  if (url.pathname === "/authorize" && req.method === "GET") {
-    return new Response(renderConsentPage(url.search), {
-      headers: { "content-type": "text/html; charset=utf-8" },
-    });
-  }
-  if (url.pathname === "/authorize" && req.method === "POST") {
-    const form = await req.formData();
-    if (form.get("token") !== env.MCP_AUTH_TOKEN) {
-      return new Response("Token non valido", { status: 401 });
-    }
-    // completeAuthorization: vedi docs workers-oauth-provider
-    return ctx.props.completeAuthorization({
-      request: ctx.props.oauthRequest,
-      userId: "studio",
-      metadata: {},
-      scope: ["mcp"],
-      props: {},
-    });
-  }
-  return new Response("<nome-progetto> MCP", { status: 200 });
-}
-
-function renderConsentPage(query) {
-  return `<!doctype html><html><head><meta charset="utf-8">
-    <title>Autorizza connector</title>
-    <style>
-      body { font-family: system-ui; max-width: 480px; margin: 4rem auto; padding: 1rem; }
-      h1 { color: #1a365d; } button { background: #2eb08e; color: white;
-        border: 0; padding: .75rem 1.5rem; border-radius: 8px; font-size: 1rem; }
-      input { width: 100%; padding: .5rem; font-size: 1rem; margin: .5rem 0; }
-    </style></head><body>
-    <h1>Autorizza Claude</h1>
-    <p>Claude sta chiedendo di collegarsi al tuo &lt;nome-progetto&gt;.
-       Inserisci il <strong>token di consenso</strong> per autorizzare.</p>
-    <form method="POST" action="/authorize${query}">
-      <label>Token di consenso</label>
-      <input type="password" name="token" required autofocus>
-      <button type="submit">Autorizza</button>
-    </form>
-  </body></html>`;
-}
-```
-
-**Punti chiave**:
-- Una sola libreria (`@cloudflare/workers-oauth-provider`), nessun JWT da gestire a mano.
-- Pagina `/authorize` brandizzata in **HTML inline** nel worker (no
-  template engine).
-- `MCP_AUTH_TOKEN` è la consent password: chi la conosce può autorizzare.
-- Per il dispatcher MCP (JSON-RPC), vedi `mcp-server/mcp-dispatcher.mjs`
-  dello Scadenzario.
-
-## 31. `bootHarness` — server statico + Playwright + cloud bloccato
-
-Pattern: test E2E che girano contro `index.html` reale ma con la rete
-verso Supabase **bloccata** → tutto stato locale stubbato in memoria.
-
-Vedi `test/setup.mjs` per la versione live.
-
-```js
-// test/setup.mjs
-import http from "node:http";
-import fs from "node:fs";
-import path from "node:path";
-
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
-
-async function loadPlaywright() {
-  const candidates = [
-    process.env.PLAYWRIGHT_MODULE,
-    "/opt/node22/lib/node_modules/playwright/index.mjs",  // container CI
-    path.join(ROOT, "node_modules/playwright/index.mjs"),  // local
-    "playwright"
-  ].filter(Boolean);
-  for (const c of candidates) {
-    try { return await import(c); } catch {}
-  }
-  throw new Error("Playwright non trovato");
-}
-
-function startStaticServer(port) {
-  const mime = {
-    ".html": "text/html; charset=utf-8",
-    ".js": "application/javascript",
-    ".mjs": "application/javascript",
-    ".css": "text/css", ".json": "application/json",
-  };
-  const server = http.createServer((req, res) => {
-    let url = (req.url || "/").split("?")[0];
-    if (url === "/") url = "/index.html";
-    const fp = path.join(ROOT, url);
-    if (!fp.startsWith(ROOT)) { res.writeHead(403); res.end(); return; }
-    fs.readFile(fp, (err, data) => {
-      if (err) { res.writeHead(404); res.end("404"); return; }
-      const ext = path.extname(fp).toLowerCase();
-      res.writeHead(200, { "Content-Type": mime[ext] || "application/octet-stream" });
-      res.end(data);
-    });
-  });
-  return new Promise(resolve => server.listen(port, () => resolve(server)));
-}
-
-export async function bootHarness(opts = {}) {
-  const port = opts.port || 8765;
-  const server = await startStaticServer(port);
-  const { chromium } = await loadPlaywright();
-  const browser = await chromium.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-dev-shm-usage"],
-  });
-  const ctx = await browser.newContext({ viewport: { width: 1200, height: 900 } });
-  const page = await ctx.newPage();
-  // CRITICO: blocca la rete verso il backend produzione.
-  await page.route("**/*supabase.co/**", r => r.abort());
-
-  const errors = [];
-  page.on("pageerror", e => errors.push(e.message));
-
-  await page.goto(`http://localhost:${port}/index.html`, { waitUntil: "domcontentloaded" });
-  await page.waitForFunction(() => window.__app);  // hook globale dell'app
-
-  return {
-    page, browser, server, errors,
-    teardown: async () => { await browser.close(); server.close(); },
-  };
-}
-
-export function mkChecker() {
-  const fails = [], passes = [];
-  return {
-    ok(label, cond, hint) {
-      console.log((cond ? "✅ " : "❌ ") + label + (hint ? "\n    " + hint : ""));
-      (cond ? passes : fails).push(label);
-    },
-    summary(prefix) {
-      if (!fails.length) { console.log(`✅ ${prefix}: ${passes.length}/${passes.length}`); return 0; }
-      console.log(`❌ ${prefix}: ${passes.length}/${passes.length + fails.length}`);
-      fails.forEach(f => console.log("    - " + f));
-      return 1;
-    },
-  };
-}
-```
-
-Esempio d'uso di un singolo test:
-
-```js
-// test/01-base-flow.mjs
-import { bootHarness, mkChecker } from "./setup.mjs";
-
-const { page, errors, teardown } = await bootHarness();
-const c = mkChecker();
-try {
-  // L'app inietta uno stato di test via console:
-  await page.evaluate(() => window.__app.setTestState({
-    records: [{ id: "r1", title: "Test record", stato: "backlog" }],
-  }));
-  await page.waitForSelector("[data-record-id='r1']");
-  c.ok("record visibile", true);
-
-  await page.click("[data-record-id='r1']");
-  c.ok("sheet aperto", await page.isVisible("#sheet"));
-
-  c.ok("zero JS errors", errors.length === 0,
-       errors.length ? "errors: " + errors.join("; ") : "");
-} finally {
-  await teardown();
-}
-
-process.exit(c.summary("test 01"));
-```
-
-**Punti chiave**:
-- `page.route("**/*supabase.co/**", r => r.abort())` blocca **ogni**
-  chiamata al backend produzione. I test sono garantiti deterministici.
-- `loadPlaywright()` cerca in più path → funziona in container CI e su locale.
-- `window.__app` (o `__scad` nello Scadenzario) è un hook globale che
-  espone setTestState/getState per i test.
-- `mkChecker` evita di installare una libreria di assertion: 30 righe e fa
-  quello che serve.
-
----
-
 ## 33. Design discovery prima di codice
 
 > Scope: il *processo* di discovery (mockup statici approvati prima di toccare
@@ -2109,7 +1495,7 @@ polish per vedere se ora gli piace" porta sempre a perdere altre ore.
   scritto di design language — il PM sceglie senza sapere cosa ha approvato
   davvero, e l'iterazione successiva torna alla casella zero.
 
-### Riferimenti file (Scadenzario)
+### Riferimenti interni (repo Scadenzario, privato)
 
 - `docs/design-discovery/DESIGN_LANGUAGE_v1.md` — esempio v1 (documento + tipografia + palette + 7 pattern + roadmap 21h)
 - `docs/design-discovery/mockup-{01,02,03}-*.html` — i 3 mockup approvati in design discovery
@@ -2468,6 +1854,624 @@ developer. Senza profilazione, ogni nuovo progetto rifa da zero il giro di
 "come si parla a questo PM" sprecando i primi giorni in domande
 sbagliate. Codificarlo qui + nel `AGENT_BOOTSTRAP` fa partire ogni
 progetto col piede giusto.
+
+---
+
+# Parte E — Snippet riusabili
+
+> I template che seguono sono **estratti dal codice reale dello Scadenzario**,
+> già testati in produzione. Copia-incolla nel prodotto numero 2.
+> Riferimento `file:riga` come "vedi esempio originale".
+
+> **Copia canonica sterilizzata → `nove-c-kit` (repo pubblico)**
+> Gli snippet di questa Parte E + lo scheletro MCP della §30 vivono anche,
+> in versione **parametrizzata e dominio-free**, nel kit pubblico
+> [`danielcarta9c/nove-c-kit`](https://github.com/danielcarta9c/nove-c-kit).
+> Un Claude di un altro progetto può recuperarli senza accesso a questo repo
+> via `raw.githubusercontent.com/danielcarta9c/nove-c-kit/main/<path>`.
+> Gli snippet qui sotto restano la versione "caso di studio" (con i nomi reali
+> Scadenzario, leggibile offline); il kit è la versione "pronta da clonare".
+> **Copia, non importare** (vedi `nove-c-kit/README.md`).
+>
+> | Sezione | File nel kit |
+> |---------|---------------------|
+> | §25 markDirty/saveNow | `snippets/markDirty-saveNow.mjs` |
+> | §26 handleRemoteChange | `snippets/handleRemoteChange.mjs` |
+> | §27 audit log | `snippets/audit-log.mjs` |
+> | §28 soft delete + RLS | `snippets/multi-tenant-audit-soft-delete.sql` |
+> | §29 attachKanDrag | `snippets/attachKanDrag.mjs` |
+> | §30 Worker MCP skeleton | `mcp-template/` (intera cartella) |
+> | §31 bootHarness | `snippets/bootHarness.mjs` |
+> | §35 ops Actions + auto-commit | `snippets/ops-auto-commit-workflow.yml` + `snippets/selftest-autolog.yml` |
+
+## 25. `markDirty` + `saveNow` + `isPlaceholder`
+
+Pattern: l'utente modifica state → marchiamo "dirty" + schedulato debounced
+350ms → un solo round di upsert al cloud, batched, **mai sui placeholder**.
+
+Vedi la versione live nello `index.html` dello Scadenzario (repo interno Nove C).
+
+```js
+const PLACEHOLDER_ID_REGEX = /^(new|temp|placeholder)[-_:]/i;
+const isPlaceholder = obj => !obj || !obj.id || PLACEHOLDER_ID_REGEX.test(obj.id);
+
+function debounce(fn, ms) {
+  let t = null;
+  return (...args) => {
+    if (t) clearTimeout(t);
+    t = setTimeout(() => { t = null; fn(...args); }, ms);
+  };
+}
+
+function markDirty(opts) {
+  state.dirty = true;
+  if (!state._dirty) {
+    state._dirty = { records: new Set(), all: false };
+  }
+  if (opts?.recordId) state._dirty.records.add(opts.recordId);
+  else state._dirty.all = true;
+  setStatus("dirty", "Salvataggio…");
+  scheduleSave();
+}
+
+const scheduleSave = debounce(saveNow, 350);
+
+async function saveNow() {
+  if (state.saving || !state._dirty) return;
+  state.saving = true;
+  setStatus("dirty", "Salvataggio…");
+  try {
+    let toUpsert;
+    if (state._dirty.all) {
+      toUpsert = state.data.records.filter(r => !isPlaceholder(r));
+    } else {
+      toUpsert = [...state._dirty.records]
+        .map(id => state.data.records.find(r => r.id === id))
+        .filter(r => r && !isPlaceholder(r));
+    }
+    if (toUpsert.length) await cloudUpsertBatch(toUpsert);
+    state._dirty = { records: new Set(), all: false };
+    state.dirty = false;
+    setStatus("ok", "Sincronizzato");
+  } catch (e) {
+    console.error(e);
+    setStatus("err", "Errore sync");
+    toast("Errore sincronizzazione: " + (e.message || e), 4000);
+  } finally {
+    state.saving = false;
+  }
+}
+```
+
+**Punti chiave**:
+- `state.dirty` boolean per UI (banner "salvataggio…"), `state._dirty` per logica.
+- Doppia modalità: per id specifici (efficiente) o full batch (fallback).
+- **Sempre** filtro `isPlaceholder` prima di upsertare. **Mai dimenticarlo**:
+  un placeholder pushato sul cloud diventa un record fantasma indistruttibile.
+- `try/finally` rilascia `state.saving` anche su errore.
+
+## 26. `handleRemoteChange` con self-echo skip
+
+Pattern realtime: il server pusha una modifica → noi aggiorniamo state
+**preservando i riferimenti** (`Object.assign`, mai assegnamento) e
+**saltando self-echo** se l'utente sta editando proprio quel record.
+
+Vedi la versione live nello `index.html` dello Scadenzario (repo interno Nove C).
+
+```js
+function handleRemoteChange(table, payload) {
+  if (table === "records") {
+    if (payload.eventType === "DELETE") {
+      state.data.records = state.data.records.filter(r => r.id !== payload.old.id);
+    } else {
+      const row = payload.new;
+      // Self-echo: l'utente sta editando proprio questo record.
+      // Ignora: il prossimo saveNow() riallineerà comunque.
+      if (state.selectedId === row.id) return;
+      const idx = state.data.records.findIndex(r => r.id === row.id);
+      if (idx >= 0) {
+        // CRITICO: Object.assign muta in-place, preserva i ref dei form.
+        // MAI state.data.records[idx] = row → form scollegato (bug v6.0.2 CRM).
+        Object.assign(state.data.records[idx], row);
+      } else {
+        state.data.records.unshift(row);
+      }
+    }
+  }
+  renderAll();
+}
+
+// Subscription:
+const channel = sb
+  .channel("records-realtime")
+  .on("postgres_changes",
+      { event: "*", schema: "public", table: "records" },
+      payload => handleRemoteChange("records", payload))
+  .subscribe();
+```
+
+**Punti chiave**:
+- `Object.assign(existing, row)` — **mai** riassegnare l'oggetto.
+- Self-echo skip su `state.selectedId === row.id`.
+- DELETE è gestito a parte (rimozione array).
+- INSERT inietta in cima per visibilità (`unshift`); cambia se vuoi ordine diverso.
+
+## 27. Audit log batched (client + SQL)
+
+Pattern: ogni operazione CUD logga un evento → coda in memoria → flush ogni
+2 secondi in background → **mai blocca** l'UI.
+
+### Tabella SQL
+
+```sql
+CREATE TABLE IF NOT EXISTS audit_log (
+  id          bigserial PRIMARY KEY,                  -- vedi §3b per il GRANT sulla sequenza
+  workspace_id uuid NOT NULL REFERENCES workspaces(id),
+  actor_id    uuid REFERENCES auth.users(id),  -- null se sistema o MCP server
+  action      text NOT NULL,                    -- 'create', 'update', 'delete', 'login', 'backup_export', ...
+  entity_type text,                              -- 'utente', 'ordine', 'documento', 'template', ...
+  entity_id   uuid,                              -- nullable: alcune azioni non hanno entità singola
+  payload     jsonb,                             -- diff, snapshot, o context
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY audit_log_workspace_select ON audit_log
+  FOR SELECT TO authenticated
+  USING (workspace_id = current_workspace_id());
+
+CREATE POLICY audit_log_workspace_insert ON audit_log
+  FOR INSERT TO authenticated
+  WITH CHECK (workspace_id = current_workspace_id());
+
+CREATE INDEX audit_log_workspace_created_idx ON audit_log(workspace_id, created_at DESC);
+CREATE INDEX audit_log_entity_idx ON audit_log(entity_type, entity_id);
+```
+
+### Client batched (fire-and-forget)
+
+```js
+const auditQueue = [];
+let auditTimer = null;
+
+function logAudit(action, entityType, entityId, payload) {
+  auditQueue.push({
+    workspace_id: state.currentWorkspaceId,
+    actor_id: state.user?.id || null,
+    action,
+    entity_type: entityType || null,
+    entity_id: entityId || null,
+    payload: payload || null,
+  });
+  if (!auditTimer) auditTimer = setTimeout(flushAudit, 2000);
+}
+
+async function flushAudit() {
+  auditTimer = null;
+  if (!auditQueue.length || !sb) return;
+  const batch = auditQueue.splice(0);
+  try {
+    await sb.from("audit_log").insert(batch);
+  } catch (e) {
+    console.warn("audit log flush failed", e);
+    // Re-enqueue se vuoi retry; oppure accetta la perdita (audit ≠ critico).
+  }
+}
+
+window.addEventListener("beforeunload", () => {
+  if (auditQueue.length && sb) {
+    // Best-effort sync su tab close: usa sendBeacon se l'endpoint REST lo supporta.
+    sb.from("audit_log").insert(auditQueue.splice(0));
+  }
+});
+```
+
+**Punti chiave**:
+- **Fire-and-forget**: l'audit non deve mai bloccare l'utente.
+- Batch ogni 2s: 1 INSERT con 20 righe è meglio di 20 INSERT.
+- `actor_id` nullable: scritture da MCP server o cron job non hanno utente loggato.
+- `payload` JSONB: ci metti dentro quello che serve (diff, snapshot, motivo).
+- `beforeunload` per non perdere gli ultimi eventi su chiusura tab.
+
+## 28. Soft delete + RLS workspace-scoped (SQL)
+
+Pattern: ogni tabella business ha `workspace_id` + `deleted_at`. RLS
+filtrano automaticamente per workspace dell'utente e nascondono i
+soft-deleted.
+
+```sql
+-- 1. Tabelle infrastrutturali (workspace + membership)
+
+CREATE TABLE IF NOT EXISTS workspaces (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  nome text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+INSERT INTO workspaces (id, nome) VALUES
+  ('00000000-0000-0000-0000-000000000001', 'Default')
+ON CONFLICT (id) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS workspace_members (
+  workspace_id uuid REFERENCES workspaces(id) ON DELETE CASCADE,
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  ruolo text NOT NULL DEFAULT 'member',
+  PRIMARY KEY (workspace_id, user_id)
+);
+
+-- 2. Funzione per leggere il workspace dell'utente loggato
+
+CREATE OR REPLACE FUNCTION current_workspace_id()
+RETURNS uuid
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT workspace_id
+  FROM workspace_members
+  WHERE user_id = auth.uid()
+  LIMIT 1;
+$$;
+
+-- 3. Pattern per ogni tabella business (esempio: records)
+
+CREATE TABLE IF NOT EXISTS records (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL REFERENCES workspaces(id)
+    DEFAULT '00000000-0000-0000-0000-000000000001',
+  -- ... campi business ...
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  deleted_at timestamptz NULL    -- soft delete
+);
+
+ALTER TABLE records ENABLE ROW LEVEL SECURITY;
+
+-- Policy SELECT: solo workspace dell'utente, escludi soft-deleted
+CREATE POLICY records_select ON records
+  FOR SELECT TO authenticated
+  USING (workspace_id = current_workspace_id() AND deleted_at IS NULL);
+
+-- Policy INSERT: solo nel proprio workspace
+CREATE POLICY records_insert ON records
+  FOR INSERT TO authenticated
+  WITH CHECK (workspace_id = current_workspace_id());
+
+-- Policy UPDATE: solo nel proprio workspace; permette anche soft-delete
+CREATE POLICY records_update ON records
+  FOR UPDATE TO authenticated
+  USING (workspace_id = current_workspace_id())
+  WITH CHECK (workspace_id = current_workspace_id());
+
+-- Niente policy DELETE: si usa soft-delete via UPDATE deleted_at = now()
+```
+
+**Punti chiave**:
+- `DEFAULT '00000000-0000-0000-0000-000000000001'` sul workspace così l'app
+  single-tenant funziona senza ricordarsi di settarlo.
+- `SECURITY DEFINER` su `current_workspace_id()` per saltare RLS sul
+  lookup membership (altrimenti loop).
+- **Mai** policy DELETE: l'app fa solo UPDATE `deleted_at`. La policy SELECT
+  esclude i deleted automaticamente.
+- Index su `(workspace_id, deleted_at)` se il filtro diventa lento.
+
+Versione live nello Scadenzario (repo interno Nove C): `sql/*-multi-tenant-audit-soft-delete.sql`. Per copiare nel tuo progetto usa lo snippet nel kit (sopra).
+
+## 29. `attachKanDrag` — drag touch iOS
+
+Pattern: drag&drop tra colonne Kanban che funziona su iPhone Safari
+**senza rompere** lo scroll di pagina.
+
+Vedi la versione live nello `index.html` dello Scadenzario (repo interno Nove C).
+
+```html
+<style>
+  .card { touch-action: auto; }              /* default: scroll normale */
+  .card.is-dragging { touch-action: none; }   /* solo durante drag */
+</style>
+```
+
+```js
+function attachKanDrag(card, onDrop, opts = {}) {
+  const isTouch = "ontouchstart" in window;
+  let dragging = false;
+  let startX = 0, startY = 0;
+  let ghost = null;
+
+  function onStart(e) {
+    const pt = isTouch ? e.touches[0] : e;
+    startX = pt.clientX; startY = pt.clientY;
+    // Aspetta soglia di 8px per distinguere tap da drag
+  }
+
+  function onMove(e) {
+    const pt = isTouch ? e.touches[0] : e;
+    const dx = pt.clientX - startX, dy = pt.clientY - startY;
+    if (!dragging) {
+      if (Math.hypot(dx, dy) < 8) return;  // ancora tap
+      dragging = true;
+      card.classList.add("is-dragging");
+      ghost = card.cloneNode(true);
+      ghost.classList.add("drag-ghost");
+      document.body.appendChild(ghost);
+    }
+    if (isTouch) e.preventDefault();  // blocca scroll SOLO durante drag
+    ghost.style.left = pt.clientX + "px";
+    ghost.style.top = pt.clientY + "px";
+  }
+
+  function onEnd(e) {
+    if (dragging) {
+      const pt = isTouch ? e.changedTouches[0] : e;
+      const target = document.elementFromPoint(pt.clientX, pt.clientY);
+      const column = target?.closest(".kan-column");
+      if (column) onDrop(card, column);
+    }
+    cleanup();
+  }
+
+  function cleanup() {
+    dragging = false;
+    card.classList.remove("is-dragging");
+    if (ghost) { ghost.remove(); ghost = null; }
+  }
+
+  if (isTouch) {
+    // CRITICO: { passive: false } altrimenti preventDefault non funziona
+    card.addEventListener("touchstart", onStart, { passive: false });
+    card.addEventListener("touchmove", onMove, { passive: false });
+    card.addEventListener("touchend", onEnd);
+    card.addEventListener("touchcancel", cleanup);
+  } else {
+    card.addEventListener("mousedown", onStart);
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onEnd);
+  }
+}
+```
+
+**Punti chiave**:
+- `touch-action: auto` di default, `none` SOLO quando `.is-dragging`.
+- `{passive: false}` obbligatorio sui listener touch, altrimenti
+  `preventDefault()` è no-op (Safari iOS).
+- Soglia 8px prima di considerare "drag": distingue tap accidentali.
+- `elementFromPoint` per trovare il bersaglio sotto il dito al rilascio.
+
+## 30. `OAuthProvider` Worker MCP skeleton
+
+Vedi §1 per il razionale e lo **scheletro completo già pronto in
+`mcp-template/worker.mjs`** del kit (oltre alla versione live nello
+Scadenzario interno). Qui il **minimo** per un MCP server HTTP con OAuth
+2.1 + DCR.
+
+### `wrangler.toml`
+
+```toml
+name = "<nome-progetto>-mcp"
+main = "worker.mjs"
+compatibility_date = "2025-01-01"
+
+[[kv_namespaces]]
+binding = "OAUTH_KV"
+id = "PLACEHOLDER_SOSTITUISCI"
+
+# Secrets via `npx wrangler secret put NOME`:
+# - MCP_AUTH_TOKEN     (consent password)
+# - BACKEND_URL        (es. Supabase project URL)
+# - BACKEND_SECRET_KEY (es. Supabase Secret)
+```
+
+### `worker.mjs`
+
+```js
+import { OAuthProvider } from "@cloudflare/workers-oauth-provider";
+import { dispatchMCP } from "./mcp-dispatcher.mjs";
+
+const oauth = new OAuthProvider({
+  apiRoute: "/mcp",
+  apiHandler: { fetch: handleMCP },
+  defaultHandler: { fetch: handleHTTP },
+  authorizeEndpoint: "/authorize",
+  tokenEndpoint: "/token",
+  clientRegistrationEndpoint: "/register",
+});
+
+export default {
+  fetch: (req, env, ctx) => oauth.fetch(req, env, ctx),
+};
+
+async function handleMCP(req, env, ctx) {
+  const body = await req.json();
+  const client = makeBackendClient(env);
+  const result = await dispatchMCP(body, client);
+  return new Response(JSON.stringify(result), {
+    headers: { "content-type": "application/json" },
+  });
+}
+
+async function handleHTTP(req, env, ctx) {
+  const url = new URL(req.url);
+  if (url.pathname === "/authorize" && req.method === "GET") {
+    return new Response(renderConsentPage(url.search), {
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+  }
+  if (url.pathname === "/authorize" && req.method === "POST") {
+    const form = await req.formData();
+    if (form.get("token") !== env.MCP_AUTH_TOKEN) {
+      return new Response("Token non valido", { status: 401 });
+    }
+    // completeAuthorization: vedi docs workers-oauth-provider
+    return ctx.props.completeAuthorization({
+      request: ctx.props.oauthRequest,
+      userId: "studio",
+      metadata: {},
+      scope: ["mcp"],
+      props: {},
+    });
+  }
+  return new Response("<nome-progetto> MCP", { status: 200 });
+}
+
+function renderConsentPage(query) {
+  return `<!doctype html><html><head><meta charset="utf-8">
+    <title>Autorizza connector</title>
+    <style>
+      body { font-family: system-ui; max-width: 480px; margin: 4rem auto; padding: 1rem; }
+      h1 { color: #1a365d; } button { background: #2eb08e; color: white;
+        border: 0; padding: .75rem 1.5rem; border-radius: 8px; font-size: 1rem; }
+      input { width: 100%; padding: .5rem; font-size: 1rem; margin: .5rem 0; }
+    </style></head><body>
+    <h1>Autorizza Claude</h1>
+    <p>Claude sta chiedendo di collegarsi al tuo &lt;nome-progetto&gt;.
+       Inserisci il <strong>token di consenso</strong> per autorizzare.</p>
+    <form method="POST" action="/authorize${query}">
+      <label>Token di consenso</label>
+      <input type="password" name="token" required autofocus>
+      <button type="submit">Autorizza</button>
+    </form>
+  </body></html>`;
+}
+```
+
+**Punti chiave**:
+- Una sola libreria (`@cloudflare/workers-oauth-provider`), nessun JWT da gestire a mano.
+- Pagina `/authorize` brandizzata in **HTML inline** nel worker (no
+  template engine).
+- `MCP_AUTH_TOKEN` è la consent password: chi la conosce può autorizzare.
+- Per il dispatcher MCP (JSON-RPC), vedi `mcp-template/mcp-dispatcher.mjs`
+  nel kit (versione live nello Scadenzario interno).
+
+## 31. `bootHarness` — server statico + Playwright + cloud bloccato
+
+Pattern: test E2E che girano contro `index.html` reale ma con la rete
+verso Supabase **bloccata** → tutto stato locale stubbato in memoria.
+
+Vedi `test/setup.mjs` per la versione live.
+
+```js
+// test/setup.mjs
+import http from "node:http";
+import fs from "node:fs";
+import path from "node:path";
+
+const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+
+async function loadPlaywright() {
+  const candidates = [
+    process.env.PLAYWRIGHT_MODULE,
+    "/opt/node22/lib/node_modules/playwright/index.mjs",  // container CI
+    path.join(ROOT, "node_modules/playwright/index.mjs"),  // local
+    "playwright"
+  ].filter(Boolean);
+  for (const c of candidates) {
+    try { return await import(c); } catch {}
+  }
+  throw new Error("Playwright non trovato");
+}
+
+function startStaticServer(port) {
+  const mime = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "application/javascript",
+    ".mjs": "application/javascript",
+    ".css": "text/css", ".json": "application/json",
+  };
+  const server = http.createServer((req, res) => {
+    let url = (req.url || "/").split("?")[0];
+    if (url === "/") url = "/index.html";
+    const fp = path.join(ROOT, url);
+    if (!fp.startsWith(ROOT)) { res.writeHead(403); res.end(); return; }
+    fs.readFile(fp, (err, data) => {
+      if (err) { res.writeHead(404); res.end("404"); return; }
+      const ext = path.extname(fp).toLowerCase();
+      res.writeHead(200, { "Content-Type": mime[ext] || "application/octet-stream" });
+      res.end(data);
+    });
+  });
+  return new Promise(resolve => server.listen(port, () => resolve(server)));
+}
+
+export async function bootHarness(opts = {}) {
+  const port = opts.port || 8765;
+  const server = await startStaticServer(port);
+  const { chromium } = await loadPlaywright();
+  const browser = await chromium.launch({
+    headless: true,
+    args: ["--no-sandbox", "--disable-dev-shm-usage"],
+  });
+  const ctx = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+  const page = await ctx.newPage();
+  // CRITICO: blocca la rete verso il backend produzione.
+  await page.route("**/*supabase.co/**", r => r.abort());
+
+  const errors = [];
+  page.on("pageerror", e => errors.push(e.message));
+
+  await page.goto(`http://localhost:${port}/index.html`, { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__app);  // hook globale dell'app
+
+  return {
+    page, browser, server, errors,
+    teardown: async () => { await browser.close(); server.close(); },
+  };
+}
+
+export function mkChecker() {
+  const fails = [], passes = [];
+  return {
+    ok(label, cond, hint) {
+      console.log((cond ? "✅ " : "❌ ") + label + (hint ? "\n    " + hint : ""));
+      (cond ? passes : fails).push(label);
+    },
+    summary(prefix) {
+      if (!fails.length) { console.log(`✅ ${prefix}: ${passes.length}/${passes.length}`); return 0; }
+      console.log(`❌ ${prefix}: ${passes.length}/${passes.length + fails.length}`);
+      fails.forEach(f => console.log("    - " + f));
+      return 1;
+    },
+  };
+}
+```
+
+Esempio d'uso di un singolo test:
+
+```js
+// test/01-base-flow.mjs
+import { bootHarness, mkChecker } from "./setup.mjs";
+
+const { page, errors, teardown } = await bootHarness();
+const c = mkChecker();
+try {
+  // L'app inietta uno stato di test via console:
+  await page.evaluate(() => window.__app.setTestState({
+    records: [{ id: "r1", title: "Test record", stato: "backlog" }],
+  }));
+  await page.waitForSelector("[data-record-id='r1']");
+  c.ok("record visibile", true);
+
+  await page.click("[data-record-id='r1']");
+  c.ok("sheet aperto", await page.isVisible("#sheet"));
+
+  c.ok("zero JS errors", errors.length === 0,
+       errors.length ? "errors: " + errors.join("; ") : "");
+} finally {
+  await teardown();
+}
+
+process.exit(c.summary("test 01"));
+```
+
+**Punti chiave**:
+- `page.route("**/*supabase.co/**", r => r.abort())` blocca **ogni**
+  chiamata al backend produzione. I test sono garantiti deterministici.
+- `loadPlaywright()` cerca in più path → funziona in container CI e su locale.
+- `window.__app` (o `__scad` nello Scadenzario) è un hook globale che
+  espone setTestState/getState per i test.
+- `mkChecker` evita di installare una libreria di assertion: 30 righe e fa
+  quello che serve.
 
 ---
 
