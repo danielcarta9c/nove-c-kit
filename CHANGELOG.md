@@ -2,6 +2,34 @@
 
 ## Non rilasciato (post-v1.1)
 
+- **PLAYBOOK riordinato**: Parte D fisicamente contigua. Prima l'ordine
+  era `§13-§24, §32, [Parte E §25-§31], §33, §34, §35, §36` (la metodologia
+  spezzata in due dall'inserto Parte E); ora è `§13-§24, §32, §33, §34, §35,
+  §36, Parte E §25-§31`. Niente rinumerazione → zero cross-ref rotti, anchor
+  link tutti ancora validi.
+- PLAYBOOK §27 `audit_log` allineato al snippet canonico: `id BIGSERIAL`
+  (era `uuid`), col riferimento al GRANT della sequenza in §3b. Tolta la
+  contraddizione fra §27 inline e `snippets/multi-tenant-audit-soft-delete.sql`.
+- AGENT_BOOTSTRAP — "Identità" ridetta come "piena confidenza architetturale
+  e sistemica, non legge il dettaglio del codice", con rimando al "Profilo
+  del PM" sotto (toglie la potenziale contraddizione con "non legge codice/
+  diff/log").
+- AGENT_BOOTSTRAP — "Quando fermarsi e chiedere" preceduto da un blockquote
+  che punta a "Profilo del PM"/§36 come fonte autoritativa del principio
+  ("autonomia sul rischio, non sul ruolo").
+- AGENT_BOOTSTRAP — sezione "Regole non negoziabili (le 10 + 1)" rinominata
+  in "(le 13)": erano 13, il titolo sbagliato.
+- PLAYBOOK §14 — frase "Copia da questo Playbook gli snippet della Parte E"
+  riformulata: i snippet canonici stanno in `nove-c-kit/snippets/`, la
+  Parte E ne è il razionale.
+- PLAYBOOK Parte E intro — aggiunta riga della tabella per
+  `ops-auto-commit-workflow.yml` + `selftest-autolog.yml` (§35).
+- PLAYBOOK — riferimenti interni Scadenzario riquadrati: subheader
+  "Riferimenti file (Scadenzario)" → "Riferimenti interni (repo
+  Scadenzario, privato)"; tolte le line-number anchors (`index.html:NNN`,
+  `sql/04-*`) che invecchiavano; §30 redirige a `mcp-template/` del kit
+  invece del privato `mcp-server/`.
+
 - PLAYBOOK §36 (nuova, Parte D) — "Profilazione del PM e calibrazione
   dell'autonomia": 4 domande di profilo + 5 regole derivate (porta solo
   decisioni di prodotto, intuizioni del non-tecnico verificate nel codice,

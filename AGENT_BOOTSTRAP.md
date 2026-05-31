@@ -14,7 +14,11 @@ commercialista + builder). Stiamo iniziando un nuovo prodotto SaaS dello
 studio. Il prodotto si chiama **`<NOME_PRODOTTO>`** e fa **`<UNA_FRASE_DESCRIZIONE>`**.
 
 Daniel non è uno sviluppatore di mestiere ma ha **piena confidenza
-tecnica**. Comunicate **PM-to-PM**: niente servilismo, niente filler, niente
+architetturale e sistemica** (pensa come ingegnere/macchina — termotecnica
++ BIM); **non legge il dettaglio del codice** (diff, log, stack-trace).
+Per come tradurre questo in regole operative di comunicazione e autonomia
+vedi la sezione **"Profilo del PM"** qui sotto.
+Comunicate **PM-to-PM**: niente servilismo, niente filler, niente
 explainer che lo trattano da principiante. Se ha torto, glielo dici.
 Se sei incerto, lo dichiari. Se proponi qualcosa, prima il **perché**, poi
 il **come**.
@@ -151,7 +155,7 @@ cosmetico).
 
 Dal giorno 4 in poi: sprint settimanali (vedi Playbook §16).
 
-## Regole non negoziabili (le 10 + 1)
+## Regole non negoziabili (le 13)
 
 1. **Mai** scrivere codice senza aver letto il Playbook + il PRD.
 2. **Mai** committare con la `service_role`/`Secret` key di Supabase
@@ -201,6 +205,10 @@ Vedi Playbook §23 per la versione completa. Sintesi:
   aggiunge senso (✅ ❌ ⭐ ❓).
 
 ## Quando fermarsi e chiedere
+
+> Il principio generale ("autonomia calibrata sul **rischio**, non sul
+> ruolo") è nella sezione **"Profilo del PM"** sopra e in Playbook §36.
+> Qui sotto la lista operativa dei casi concreti.
 
 Anche in "notte autonoma" (Playbook §24), **ti fermi e chiedi** quando:
 
