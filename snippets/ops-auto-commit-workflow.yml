@@ -1,22 +1,30 @@
 # ops-auto-commit-workflow.yml — Scheletro Nove C per workflow GitHub Actions
 # che esegue un'operazione cloud (psql, wrangler, ecc.) e auto-committa
-# l'output nel repo CON heartbeat periodico, così il progresso arriva in
-# tempo reale e un eventuale timeout NON cancella il log.
+# l'output nel repo CON heartbeat periodico (visibilità in tempo reale +
+# resistenza a timeout) e un secondo step `if: always()` come rete finale.
 # Vedi PLAYBOOK §35 per il razionale completo.
 #
 # Copia in `.github/workflows/<nome-ops>.yml` del tuo repo, sostituisci i
 # <placeholder>, e assicurati che i secret citati esistano in
 # GitHub Settings → Secrets and variables → Actions.
+#
+# PRECONDIZIONE — verifica che il `.gitignore` del repo NON ingoi `ops/out/`:
+#   *.log
+#   !sql/ops/out/
+#   !sql/ops/out/**
+#   !mcp-server/out/
+#   !mcp-server/out/**
+# Controlla con `git check-ignore ops/out/<file>.log` prima di affidartici.
 
 name: <nome-ops> autolog
 
 on:
-  workflow_dispatch:                  # un click dalla UI Actions
+  workflow_dispatch:                   # un click dalla UI Actions
   # schedule:
-  #   - cron: "*/15 * * * *"           # loop autonomo (5-15 min di latenza)
+  #   - cron: "*/15 * * * *"            # loop autonomo (5-15 min di latenza)
 
 permissions:
-  contents: write                      # serve per auto-committare il log
+  contents: write                       # serve per auto-committare il log
 
 concurrency:
   group: <nome-ops>
@@ -49,19 +57,28 @@ jobs:
           git config user.name "ops-bot"
           git config user.email "ops-bot@users.noreply.github.com"
 
+          # Funzione push con retry: resiste a push concorrenti su `main`
+          # (vedi PLAYBOOK §35 trappola n.2 — "fetch first").
+          push_with_retry() {
+            for i in 1 2 3; do
+              git pull --rebase --autostash origin main 2>/dev/null
+              git push origin main 2>/dev/null && return 0
+              sleep 2
+            done
+            return 1
+          }
+
           # ------------------------------------------------------------------
-          # HEARTBEAT: ogni 60s pusha il log parziale, così il progresso
-          # arriva in tempo reale e un TIMEOUT/crash non cancella l'output.
-          # Per job certamente brevi (<2 min) commenta il blocco e tieni
-          # solo il commit finale in fondo. Vedi PLAYBOOK §35.
+          # HEARTBEAT: ogni 60s pusha il log parziale → progresso in tempo
+          # reale + lo stato resiste al TIMEOUT/runner-kill.
+          # Per job certamente brevi (<2 min) commenta il blocco.
           # ------------------------------------------------------------------
           (
             while sleep 60; do
               git add ops/out/ 2>/dev/null
               git diff --staged --quiet && continue
               git commit -m "chore(ops): heartbeat $(date -u +%H:%M:%S) [skip ci]" 2>/dev/null
-              git pull --rebase origin main 2>/dev/null
-              git push origin main 2>/dev/null
+              push_with_retry
             done
           ) &
           HB_PID=$!
@@ -69,8 +86,7 @@ jobs:
 
           # ====== sostituisci con il tuo comando ======
           # IMPORTANTE: usa `>>` (append) e `stdbuf -oL` per line-buffering,
-          # altrimenti il file resta vuoto finché il programma non termina
-          # e il heartbeat non vede niente da committare.
+          # altrimenti il file resta vuoto finché il programma non termina.
           #
           # Esempio psql (Session Pooler IPv4, porta 5432):
           # stdbuf -oL psql -v ON_ERROR_STOP=1 \
@@ -85,12 +101,39 @@ jobs:
           echo "# exit_code: $EXIT_CODE" >> "$OUT"
           cat "$OUT"
 
-          # Stop heartbeat + commit finale (cattura l'ultimo stato e l'exit_code).
+          # Stop heartbeat + commit "mid" (cattura l'ultimo stato + exit_code).
           kill $HB_PID 2>/dev/null
           wait $HB_PID 2>/dev/null
           git add ops/out/
           if ! git diff --staged --quiet; then
-            git commit -m "chore(ops): autolog done exit=$EXIT_CODE [skip ci]"
-            git pull --rebase origin main 2>/dev/null
-            git push origin main
+            git commit -m "chore(ops): autolog mid exit=$EXIT_CODE [skip ci]"
+            push_with_retry
           fi
+
+          # Riporta l'exit code reale (il job fallisce visibilmente se serve;
+          # lo step `if: always()` sotto cattura comunque il log).
+          exit $EXIT_CODE
+
+      - name: Commit finale (belt-and-braces, if always)
+        if: always()
+        working-directory: .            # esplicito: niente path raddoppiato
+        run: |
+          # Rete di salvataggio: se lo step principale è abortito prima del
+          # suo commit interno (bash crash, OOM, exit prematuro), proviamo
+          # qui un ultimo add/commit/push. Idempotente con il precedente.
+          set +e
+          git config user.name "ops-bot"
+          git config user.email "ops-bot@users.noreply.github.com"
+          git add ops/out/ 2>/dev/null || true
+          if git diff --staged --quiet; then
+            echo "Nulla da committare a livello if-always (già fatto dallo step principale)."
+            exit 0
+          fi
+          git commit -m "chore(ops): autolog late (if-always) [skip ci]"
+          for i in 1 2 3; do
+            git pull --rebase --autostash origin main 2>/dev/null
+            git push origin main && exit 0
+            sleep 2
+          done
+          echo "Push if-always fallito dopo 3 tentativi."
+          exit 1
