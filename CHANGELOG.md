@@ -1,5 +1,24 @@
 # Changelog
 
+## Non rilasciato (post-v1.2)
+
+- `snippets/mcp-deploy-workflow.yml` (nuovo) — workflow auto-deploy del
+  Worker MCP via `wrangler` + auto-commit del log + smoke-test DB opzionale.
+  Pattern **trigger-file** (`mcp-server/deploy.trigger`) invece di
+  `workflow_dispatch`: l'agente AI può deployare in autonomia senza
+  permessi di triggerare workflow manualmente.
+- `mcp-template/deploy.trigger` (nuovo) — file di esempio del trigger,
+  viaggia col template MCP quando lo copi in un nuovo progetto.
+- `mcp-template/README.md` — nuova sezione "Auto-deploy via GitHub
+  Actions" con setup, secret richiesti, distinzione fra secret GitHub e
+  secret runtime del Worker.
+- PLAYBOOK §35 Esempio B esteso: pattern trigger-file, `ref: main`
+  obbligatorio (deployare da branch con `wrangler.toml` placeholder
+  scollega gli utenti OAuth), `working-directory` che non eredita allo
+  step di commit, drift di `npx wrangler` se non pinnato, secret runtime
+  mancanti = Worker "non configurato". Promozione dal repo KB
+  (`REGOLE.md` workflow di promozione progetto-vivo → kit).
+
 ## v1.2 — 2026-05-31
 
 - Process: attivato sul repo il flag **"Automatically delete head branches"**

@@ -1,0 +1,114 @@
+# Deploy automatico del Cloudflare Worker (connettore MCP) via wrangler, con
+# auto-commit del log di deploy. Parte da solo al push del file trigger.
+# Vedi PLAYBOOK §35 Esempio B per il razionale completo.
+#
+# COME FUNZIONA: non si lancia "a mano" — si tocca il file
+# mcp-server/deploy.trigger (un push qualsiasi che ne cambia il contenuto) e
+# questo workflow parte. Così l'agente AI può deployare in autonomia senza
+# permessi di workflow_dispatch.
+#
+# COPIA in `.github/workflows/deploy-mcp.yml` del tuo repo, sostituisci i
+# <placeholder>, assicurati che i secret citati esistano in
+# GitHub Settings → Secrets and variables → Actions, e che il `.gitignore`
+# del repo NON ingoi `mcp-server/out/` (eccezione `!mcp-server/out/`).
+#
+# SECRET GitHub richiesti:
+#   CLOUDFLARE_API_TOKEN    → autentica wrangler. Template "Edit Cloudflare
+#                              Workers" (Workers Scripts: Edit, Workers KV
+#                              Storage: Edit, Account Settings: Read; niente
+#                              Client IP filter).
+#   CLOUDFLARE_ACCOUNT_ID   → account di deploy. NON è davvero segreto, può
+#                              stare anche come `vars`.
+#   SUPABASE_DB_PASSWORD    → (opzionale, solo per lo step smoke-test DB)
+#                              password del DB per psql.
+# I secret di RUNTIME del Worker (es. SUPABASE_URL, SUPABASE_SERVICE_KEY,
+# MCP_AUTH_TOKEN) NON stanno qui: vivono SUL Worker via `wrangler secret put`,
+# si settano UNA volta a mano e il deploy NON li tocca (sono persistenti).
+# Vedi PLAYBOOK §35 Esempio B + gotcha inline qui sotto.
+
+name: Deploy Worker MCP
+
+on:
+  push:
+    paths:
+      # Trigger dedicato: il deploy parte SOLO se cambia questo file, non a
+      # ogni push su mcp-server/ (evita deploy involontari mentre lavori sul
+      # codice). `mcp-server/` è convenzionale: rinominalo se la cartella
+      # del Worker è altrove.
+      - "mcp-server/deploy.trigger"
+
+permissions:
+  contents: write          # serve per l'auto-commit del log
+
+concurrency:
+  group: deploy-worker     # mai due deploy in parallelo
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # ref: main OBBLIGATORIO. Il deploy deve partire dalla versione
+      # CANONICA su main (codice + wrangler.toml col KV id REALE
+      # committato). Deployare da un branch con wrangler.toml placeholder
+      # aggancia il Worker a un KV sbagliato e gli utenti OAuth già
+      # collegati perdono il consenso.
+      - uses: actions/checkout@v4
+        with: { ref: main }
+
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+
+      - name: Deploy via wrangler
+        working-directory: mcp-server     # personalizzabile: cartella del Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set +e
+          npm install --no-audit --no-fund
+          mkdir -p out
+          OUT="out/deploy-$(date -u +%Y%m%dT%H%M%SZ).log"
+          # `npx wrangler` scarica l'ultima wrangler: per build riproducibili
+          # valuta di pinnare (`npx wrangler@<major>` o devDependency).
+          npx wrangler deploy >> "$OUT" 2>&1
+          echo "# exit_code: $?" >> "$OUT"
+          cat "$OUT"
+
+      # --- (OPZIONALE) smoke-test post-deploy del data layer -----------------
+      # Solo per MCP RAG con backend SQL: verifica che il deploy non abbia
+      # rotto il data layer (es. indice ANN presente, dimensione DB).
+      # Richiede SUPABASE_DB_PASSWORD. Rimuovi questo step se il tuo MCP non
+      # ha un DB da verificare.
+      - name: Smoke-test data layer (opzionale)
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PGHOST: aws-1-<region>.pooler.supabase.com   # Session Pooler IPv4
+          PGPORT: "5432"
+          PGUSER: postgres.<project-ref>
+          PGDATABASE: postgres
+        run: |
+          set +e
+          mkdir -p out/db
+          OUT="out/db/smoke-$(date -u +%Y%m%dT%H%M%SZ).log"
+          psql -c "SELECT pg_size_pretty(pg_database_size(current_database())) AS db_size;" > "$OUT" 2>&1
+          cat "$OUT"
+
+      - name: Auto-commit log
+        if: always()        # committa il log anche se il deploy fallisce
+        # NIENTE working-directory qui: lo step di commit DEVE girare dalla
+        # root del repo. Se erediti il working-directory del job
+        # (mcp-server/) il path raddoppia (mcp-server/mcp-server/out/) e
+        # `git add` non trova nulla.
+        run: |
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@users.noreply.github.com"
+          git add mcp-server/out/
+          git commit -m "chore(deploy-log): wrangler deploy [skip ci]" || echo "nulla da committare"
+          # pull --rebase + retry: se main è avanzato durante il deploy, il
+          # push finale verrebbe rifiutato. NON committare su main mentre
+          # questo job gira.
+          for n in 1 2 3; do
+            git pull --rebase --autostash origin main && git push origin main && break
+            echo "push retry $n"; sleep 3
+          done
