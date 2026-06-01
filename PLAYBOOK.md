@@ -925,6 +925,56 @@ Quando partiamo un nuovo progetto SaaS Nove C, parti da qui salvo controindicazi
 - **Claude Desktop config path Windows**: `%APPDATA%\Claude\claude_desktop_config.json`.
 - Mobile iPhone (per dogfooding + uso quotidiano via Claude mobile).
 
+### Servizi e abbonamenti disponibili (inventario)
+
+Cosa Nove C ha già attivo. **Pesalo prima di proporre dipendenze nuove**
+(anti-overengineering §13): si parte sempre da ciò che è disponibile.
+
+**Modelli e AI**:
+- **Claude Pro Max** (Anthropic) — chat + Claude Code/CLI + connector.
+- **ChatGPT Premium** (OpenAI) — chat UI.
+- **OpenAI Platform API** — chiave **per progetto** (non condivisa). Oggi
+  attiva solo quella della KB. Usabile per embedding (text-embedding-3-small
+  + Matryoshka, vedi §3d), vision, audio, function calling. Per un nuovo
+  progetto: nuova chiave dedicata + budget alimentato.
+
+**Source control / CI**:
+- **GitHub** — free tier. Repo + Actions (minutes free). Vedi §22, §35.
+
+**Compute / edge**:
+- **Cloudflare Workers + KV** — free tier. 100k req/giorno + 100k KV
+  read/giorno. Usato per MCP server e ops Actions. Vedi §1, §4.
+
+**Hosting frontend**:
+- **Netlify** — free tier. Hosting statico + branch preview.
+
+**Backend dati**:
+- **Supabase** — free tier. Postgres + Auth + Realtime + Storage + RLS.
+  ⚠️ **Stato: 2 progetti su 2 free già in uso**. Per un terzo prodotto
+  valuta esplicitamente: upgrade Pro, consolidamento su un progetto
+  esistente, o sostituzione (Neon, ecc.). Non assumere che si possa creare
+  un terzo Supabase senza decisione del PM.
+
+**Browser automation**:
+- **Browserbase** — attualmente free (era premium, può tornare premium se
+  serve). Utile per scraping/automation pilotato da AI.
+
+**Dominio**:
+- `nove-c.com` — registrato, ospita il sito istituzionale dello studio
+  (WordPress). Sottodomini disponibili per progetti pubblici (es.
+  `app.nove-c.com`).
+
+**Basso utilizzo (NON costruirci sopra pattern nuovi)**:
+- **n8n** (paid) — workflow automation. Oggi 1 solo flow attivo: redattore
+  SEO che pubblica sul blog di `nove-c.com`. Possibile dismissione futura;
+  se serve si riattiva. Prima di proporre soluzioni n8n-based, conferma
+  col PM.
+
+> Per lo stato operativo PRECISO di un singolo progetto (quale URL
+> Supabase, quale Worker, quali secret) → `PROJECT_STATE.md` "Ambienti
+> live" del progetto (§32.2). Qui sta solo l'inventario qualitativo,
+> condiviso fra progetti.
+
 ---
 
 # Parte D — Metodologia PM Nove C
