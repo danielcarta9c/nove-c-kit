@@ -2,6 +2,17 @@
 
 ## Non rilasciato (post-v1.2)
 
+- PLAYBOOK §35 — nuova sottosezione **"Lanciare un workflow da agente AI
+  senza permesso di dispatch (pattern trigger-file)"** prima degli Esempi
+  A e B, con sintomo concreto (HTTP 403 → loop di workaround), causa
+  (sandbox blocca `workflow_dispatch`, NON è auth), soluzione passo-passo.
+  Limite #1 della lista riformulato per puntare esplicitamente al
+  pattern. Anti-pattern §11: nuova riga "Agente tenta dispatch → 403 →
+  cerca workaround". AGENT_BOOTSTRAP regola #14: "Mai dispatch via API,
+  sempre trigger-file". La vecchia sottosezione "Trigger-file: gotcha
+  comune ai pattern A e B" assorbita nella nuova sezione centrale (era
+  scatter, ora unica fonte). Risolve il caso visto in produzione: nuove
+  sessioni Claude perse in loop di 403 prima di trovare il pattern.
 - PLAYBOOK §12 — nuova sottosezione "Servizi e abbonamenti disponibili
   (inventario)": elenco qualitativo delle subscription Nove C già attive
   (Claude Pro Max, ChatGPT Premium, OpenAI API, GitHub, Cloudflare,

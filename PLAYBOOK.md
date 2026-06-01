@@ -749,6 +749,7 @@ Non rifare questi, ognuno ci è costato almeno mezza giornata:
 | `*.log` nel `.gitignore` quando il workflow ops scrive output in `.log` | Workflow auto-commit "funziona" ma `git add` non vede nulla → `nothing to commit`, log mai pushati, ore perse a cercare un bug inesistente | Eccezione esplicita dopo `*.log`: `!sql/ops/out/`, `!mcp-server/out/`. Verifica con `git check-ignore <path>`. Vedi §35 |
 | `git push` del bot ops mentre `main` avanza durante il job | `! [rejected] fetch first`, log persi, nessun log nel repo nonostante il workflow sia girato | Nello step di commit: `git pull --rebase --autostash` + retry 3x prima del push. + regola di condotta: non committare su `main` durante un job lungo. Vedi §35 |
 | Cache di operazioni costose (OCR, embedding) keyed sull'`eTag` di Microsoft Graph | `eTag` cambia anche solo spostando il file → OCR/embedding rifatti **ogni notte** sui contenuti invariati, costo a pagamento per nulla | Usa il segnale "contenuto cambiato" (Graph `cTag`, hash del binario) come chiave di cache, non identificatori di metadato. Vedi §3d |
+| Agente AI tenta di triggerare un workflow GitHub Actions via API dispatch → **HTTP 403** → cerca altri token/endpoint invece di cambiare strategia | Sessione persa in workaround che non possono funzionare (il sandbox blocca `workflow_dispatch`, non è un problema di auth) | **Pattern trigger-file**: committa un file dedicato (`ops/run-sql.txt`, `mcp-server/deploy.trigger`) → il workflow parte via `on: push: paths`. È il modo Nove C standard di lanciare workflow da agente. Vedi §35 |
 
 ---
 
@@ -1636,10 +1637,13 @@ mai in chat con l'AI), il repo diventa il canale di ritorno dei risultati.
 L'AI non vede mai un secret ma può orchestrare e leggere esiti.
 
 **3 limiti onesti** (dichiarali al PM ogni volta):
-1. **Il primo trigger / l'attivazione del cron li fa l'umano una volta.**
-   Molti client AI non hanno il permesso di "far partire" un workflow:
-   scrivono codice e PR, non triggerano run. Con il cron attivo, da lì in
-   poi è autonomo.
+1. **L'agente AI non ha quasi mai `workflow_dispatch`.** Sintomo:
+   l'agente prova a triggerare il workflow via API GitHub Actions →
+   **HTTP 403**. NON è un problema di token: è una restrizione standard
+   del sandbox. Soluzione Nove C: **pattern trigger-file** (vedi
+   sottosezione dedicata sotto). L'agente lancia i workflow committando
+   un file, non chiamando l'API dispatch. Il primo setup del trigger-file
+   (creazione iniziale) lo fa l'umano una volta, poi è autonomo.
 2. **Il cron di Actions è impreciso**: 5-15+ min di ritardo. Per loop non
    presidiati va bene; per "subito" usa il dispatch manuale.
 3. **Copre solo ciò che il runner raggiunge coi secret presenti.** `psql`
@@ -1650,6 +1654,47 @@ L'AI non vede mai un secret ma può orchestrare e leggere esiti.
    La sonda funziona **tra** i job, non **durante**. → l'unico canale di
    visibilità durante un run lungo è l'heartbeat-commit del run stesso
    (vedi sotto).
+
+### Lanciare un workflow da agente AI senza permesso di dispatch (pattern trigger-file)
+
+**Il sintomo concreto.** Un Claude fresco aperto su un repo Nove C vuole
+lanciare un'op (deploy, SQL ops). Tenta una chiamata API a GitHub Actions
+per fare dispatch del workflow → **HTTP 403**. Riprova con token diversi,
+endpoint REST/GraphQL, varianti → sempre 403. Va in loop, sessione persa
+in workaround che non possono funzionare.
+
+**La causa.** Molti client AI (incluso Claude Code in vari ambienti
+sandbox) NON hanno il permesso `workflow_dispatch` sul repo, anche quando
+hanno `contents: write`. È una restrizione standard del sandbox, non un
+bug né un problema di autenticazione. Non cercare un altro token.
+
+**La soluzione Nove C: pattern trigger-file.** Invece di triggerare via
+API, l'agente:
+1. modifica un **file dedicato** nel repo (es. `ops/run-sql.txt`,
+   `mcp-server/deploy.trigger`);
+2. fa `commit` + `push` (permesso che l'agente HA quasi sempre);
+3. il workflow è registrato con `on: push: paths: [<trigger-file>]` e
+   parte da solo.
+
+Il `git push` dell'agente **è** il trigger. Niente dispatch API, niente
+token speciali, niente 403.
+
+**Setup primo trigger.** Quando il file trigger non esiste ancora,
+l'umano lo crea una volta (1 click via UI GitHub, o con un commit). Da lì
+in poi l'agente lo gestisce.
+
+**Gotcha critico — il trigger scatta solo se il contenuto CAMBIA.** Se
+rimetti la stessa riga (anche con stessi trailing newline) → nessun diff
+→ nessun run. Sintomo: l'agente "lancia" il workflow ma in Actions non
+appare niente. Fix: aggiungi sempre un timestamp/commento variabile, o
+strippa whitespace (`tr -d ' \n\r'`) prima del confronto. Vedi gli
+scaffold per il pattern preciso.
+
+**Esempi concreti** sotto: §35 Esempio A (SQL ops via `psql`) e §35
+Esempio B (deploy MCP via `wrangler`) usano entrambi questo pattern. I
+file trigger d'esempio:
+- `snippets/run-sql.txt.example` → in `ops/run-sql.txt` (SQL ops)
+- `mcp-template/deploy.trigger` → in `mcp-server/deploy.trigger` (deploy MCP)
 
 ### Setup dei secret (minimo privilegio)
 
@@ -1694,16 +1739,6 @@ trigger di esempio in `snippets/run-sql.txt.example`. Caveat consolidati:
   warning** e psql risponde `FATAL: password authentication failed` →
   perdi tempo a credere che la password sia sbagliata. Fix: `if [ -z
   "$PGPASSWORD" ]` prima di chiamare psql, con messaggio chiaro nel log.
-
-### Trigger-file: gotcha comune ai pattern Esempio A e B
-
-Sintomo: ri-scrivi il path nel trigger-file, committi, pushi — **nessun
-run parte**. Causa: `on: push: paths` scatta solo se il contenuto cambia
-davvero. Se rimetti la stessa riga (o un trailing newline identico), git
-non vede un diff. Fix: aggiungi un commento col timestamp ad ogni run, o
-strippa i whitespace prima del confronto (`tr -d ' \n\r'` come fa lo
-scaffold). Vale per `mcp-server/deploy.trigger` (Esempio B) e
-`ops/run-sql.txt` (Esempio A).
 
 ### Esempio B — Deploy Cloudflare Worker via `wrangler`
 

@@ -163,7 +163,7 @@ cosmetico).
 
 Dal giorno 4 in poi: sprint settimanali (vedi Playbook §16).
 
-## Regole non negoziabili (le 13)
+## Regole non negoziabili (le 14)
 
 1. **Mai** scrivere codice senza aver letto il Playbook + il PRD.
 2. **Mai** committare con la `service_role`/`Secret` key di Supabase
@@ -198,6 +198,13 @@ Dal giorno 4 in poi: sprint settimanali (vedi Playbook §16).
     live", ma se Daniel ha agito sul cloud senza aggiornare il doc, il
     doc è obsoleto. **Verifica al PM** la freschezza dei fatti operativi
     prima di basarci sopra un piano (Playbook §32.2).
+14. **Mai** cercare di lanciare un workflow GitHub Actions via API
+    dispatch: praticamente nessun ambiente Claude ha quel permesso e
+    riceverai sempre `HTTP 403`. **Non è un problema di token**, è una
+    restrizione standard del sandbox. Soluzione Nove C: **pattern
+    trigger-file** — committi un file dedicato del repo (es.
+    `ops/run-sql.txt`, `mcp-server/deploy.trigger`) e il workflow parte
+    via `on: push: paths`. Vedi Playbook §35.
 
 ## Convenzioni di comunicazione
 
