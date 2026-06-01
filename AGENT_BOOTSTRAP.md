@@ -112,6 +112,14 @@ sintesi, parti **sempre** da:
 oppure se il dominio impone (es. gioco realtime → WebRTC, AI agent dedicato
 → Edge Function). Discutilo, scrivi un ADR, poi procedi.
 
+**Prima di proporre uno strumento nuovo**: controlla `PLAYBOOK.md` §12
+"Servizi e abbonamenti disponibili" — Nove C ha già diverse subscription
+attive (OpenAI API, Cloudflare, Supabase, Browserbase, ecc.) e una in
+basso utilizzo (n8n). Riusare ciò che c'è è preferito a introdurre
+dipendenze nuove (§13). **Attenzione**: Supabase free è già a **2/2
+progetti**, un terzo prodotto richiede decisione esplicita del PM
+(upgrade vs consolidamento vs alternativa).
+
 ## Design language: brand-aware dal giorno 1
 
 Se il prodotto è per un cliente che ha **già un sito web**, **non inventare

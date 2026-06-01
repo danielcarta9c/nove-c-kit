@@ -2,6 +2,16 @@
 
 ## Non rilasciato (post-v1.2)
 
+- PLAYBOOK §12 — nuova sottosezione "Servizi e abbonamenti disponibili
+  (inventario)": elenco qualitativo delle subscription Nove C già attive
+  (Claude Pro Max, ChatGPT Premium, OpenAI API, GitHub, Cloudflare,
+  Netlify, Supabase, Browserbase, dominio nove-c.com, n8n in basso
+  utilizzo). Include lo stato critico Supabase free **2/2 progetti**.
+  Un Claude fresco prima di proporre uno strumento nuovo legge qui.
+- AGENT_BOOTSTRAP — pointer all'inventario in "Stack di default da
+  proporre", con il caveat esplicito sulla soglia Supabase. Chiude la
+  lacuna emersa nell'audit fresh-Claude.
+
 - `snippets/sql-ops-workflow.yml` (nuovo) — workflow per eseguire script
   SQL su Postgres/Supabase via `psql` + auto-commit del log in `sql/ops/out/`.
   **Doppio trigger**: `workflow_dispatch` per il PM + trigger-file
