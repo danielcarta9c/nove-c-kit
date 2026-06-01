@@ -27,6 +27,7 @@ Claude.ai  ──HTTPS──>  Cloudflare Worker  ──HTTPS──>  Supabase (
 | `setup-mcp.ps1` | Helper PowerShell (Windows) per setup KV + deploy | Niente |
 | `.dev.vars.example` | Template env per `wrangler dev` | Copia in `.dev.vars` (gitignored) |
 | `claude_desktop_config.example.json` | Config stdio da incollare in Claude Desktop (dev locale) | Path assoluto a `index.mjs` + env |
+| `deploy.trigger` | File trigger del workflow di auto-deploy via Actions (cambia il contenuto e pusha per deployare) | Aggiorna il timestamp prima di pushare |
 
 ## Setup (Windows PowerShell)
 
@@ -112,6 +113,44 @@ Poi sistema il **path assoluto** a `index.mjs` e compila il blocco `env`.
 Lo stdio NON usa `MCP_AUTH_TOKEN` (è solo per l'OAuth del Worker HTTP): bastano
 `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` e, se serve, `PROJECT_WORKSPACE_ID`.
 Riavvia Claude Desktop dopo aver salvato.
+
+## Auto-deploy via GitHub Actions
+
+Per non re-deployare a mano ogni volta (e per permettere all'agente AI di
+deployare in autonomia senza permessi di `workflow_dispatch`), il template
+include il pattern **trigger-file + auto-commit log**. Razionale completo:
+PLAYBOOK §35 Esempio B.
+
+**Setup (una volta):**
+
+1. Copia `nove-c-kit/snippets/mcp-deploy-workflow.yml` nel tuo repo come
+   `.github/workflows/deploy-mcp.yml`.
+2. Il file `mcp-template/deploy.trigger` è già qui: viene copiato nel tuo
+   `mcp-server/` insieme al resto del template.
+3. Setta i secret GitHub (Settings → Secrets and variables → Actions):
+   - `CLOUDFLARE_API_TOKEN` — token custom "Edit Cloudflare Workers" (vedi
+     "Setup" sopra per i permessi). Niente Client IP filter.
+   - `CLOUDFLARE_ACCOUNT_ID` — dashboard Cloudflare → Workers & Pages →
+     colonna destra. Non è davvero segreto.
+4. Verifica che `.gitignore` del repo non ingoi `mcp-server/out/`: aggiungi
+   l'eccezione `!mcp-server/out/` dopo l'eventuale `*.log`. Vedi PLAYBOOK
+   §35 "Trappole silenziose".
+5. **NON** rimettere a ogni deploy i secret di RUNTIME del Worker
+   (`SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `MCP_AUTH_TOKEN`): si settano
+   UNA volta con `wrangler secret put` (passi 3-4 di "Setup") e sono
+   persistenti — il deploy non li tocca.
+
+**Deploy:**
+
+```bash
+# Cambia il contenuto di mcp-server/deploy.trigger (es. timestamp ISO)
+echo "deploy-at: $(date -u +%Y-%m-%dT%H:%M:%SZ)" > mcp-server/deploy.trigger
+git add mcp-server/deploy.trigger && git commit -m "deploy" && git push
+```
+
+Il workflow parte, scarica il log in `mcp-server/out/deploy-<ts>.log`, fa
+`wrangler deploy` da `ref: main`, e committa il log nel repo. L'agente lo
+legge via `git pull` — zero copia-incolla.
 
 ## Gotcha (vissuti in produzione, non rifare)
 

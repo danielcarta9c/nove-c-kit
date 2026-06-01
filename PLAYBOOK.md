@@ -1628,6 +1628,9 @@ password/token/chiavi sono segreti.
 
 ### Esempio B — Deploy Cloudflare Worker via `wrangler`
 
+Workflow YAML pronto da copiare: **`snippets/mcp-deploy-workflow.yml`** + file
+trigger di esempio in `mcp-template/deploy.trigger`. Caveat consolidati:
+
 - Secret: `CLOUDFLARE_API_TOKEN`, token custom dal template **"Edit
   Cloudflare Workers"** (Account: *Workers Scripts: Edit*, *Workers KV
   Storage: Edit*, *Account Settings: Read*). Niente Client IP filter (l'IP
@@ -1640,6 +1643,30 @@ password/token/chiavi sono segreti.
   placeholder e il deploy da CI si aggancia al **KV sbagliato** → gli
   utenti OAuth perdono il consenso. Metti l'id reale nel `wrangler.toml`
   committato PRIMA di deployare da CI.
+- **Pattern trigger-file** (alternativa a `workflow_dispatch`): `on: push:
+  paths: [mcp-server/deploy.trigger]`. Cambi il contenuto del file e pushi
+  → il workflow parte. Vantaggio: l'agente AI può deployare in autonomia
+  **senza permesso di triggerare workflow manualmente** (molti client AI
+  ne sono privi). Non triggera a ogni push su `mcp-server/`, solo se cambi
+  proprio il trigger-file — evita deploy involontari mentre lavori sul
+  codice.
+- **`ref: main` obbligatorio nel `checkout`.** Deployare da un branch dove
+  `wrangler.toml` ha un id KV placeholder aggancia il Worker a un KV
+  vuoto: tutti gli utenti OAuth già collegati **perdono il consenso e
+  devono ri-autorizzare**. Il `wrangler.toml` con l'id reale vive su main.
+- **`working-directory` non eredita allo step di commit del log.** Se lo
+  step di deploy usa `working-directory: mcp-server` e lo step di commit
+  *eredita* lo stesso default, il path raddoppia
+  (`mcp-server/mcp-server/out/`) e `git add` non trova nulla. Lo step di
+  commit non deve avere `working-directory` (gira dalla root del repo).
+- **`npx wrangler` segue l'ultima major.** Sintomo: deploy che funzionava
+  fallisce "all'improvviso" dopo settimane perché è uscita una major nuova
+  con flag/comportamento diverso. Fix: pinna (`npx wrangler@<N>` o
+  `wrangler` come devDependency con versione fissa).
+- **Secret runtime mancanti = Worker "non configurato".** Sintomo: il
+  deploy va a buon fine ma i tool rispondono "server non configurato".
+  Causa: i secret del Worker non sono mai stati settati con `wrangler
+  secret put`. Fix: settarli UNA volta a mano prima del primo deploy.
 
 ### Trappole silenziose (il workflow "funziona" ma non lascia traccia)
 
@@ -1888,6 +1915,7 @@ progetto col piede giusto.
 > | §30 Worker MCP skeleton | `mcp-template/` (intera cartella) |
 > | §31 bootHarness | `snippets/bootHarness.mjs` |
 > | §35 ops Actions + auto-commit | `snippets/ops-auto-commit-workflow.yml` + `snippets/selftest-autolog.yml` |
+> | §35 Esempio B (deploy MCP) | `snippets/mcp-deploy-workflow.yml` + `mcp-template/deploy.trigger` |
 
 ## 25. `markDirty` + `saveNow` + `isPlaceholder`
 

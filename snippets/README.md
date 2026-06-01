@@ -13,6 +13,7 @@ nel tuo `index.html` (o equivalente) e adattare ai nomi delle tue entità.
 | `bootHarness.mjs` | Test harness Playwright headless: server statico + Supabase prod bloccato | §21 + §31 |
 | `ops-auto-commit-workflow.yml` | Scheletro GitHub Actions: esegue un'op cloud (psql, wrangler…) e auto-committa il log nel repo | §35 |
 | `selftest-autolog.yml` | Workflow usa-e-getta per verificare end-to-end la catena auto-commit prima di usarla davvero | §35 |
+| `mcp-deploy-workflow.yml` | Auto-deploy del Worker MCP via wrangler con trigger-file (`mcp-server/deploy.trigger`) + auto-commit log + smoke-test DB opzionale | §35 Esempio B |
 
 ## Come usarli
 
