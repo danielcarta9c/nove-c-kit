@@ -1,0 +1,117 @@
+# Esegue uno script SQL su Postgres/Supabase via psql (connessione diretta,
+# NON il SQL editor di Supabase) e AUTO-COMMITTA l'output in `sql/ops/out/`.
+# Vedi PLAYBOOK §35 Esempio A per il razionale completo.
+#
+# Perché psql e non l'editor di Supabase:
+#   - VACUUM e CREATE INDEX CONCURRENTLY non girano nell'editor (avvolge
+#     tutto in una transazione e queste istruzioni non ci possono stare).
+#   - psql con ON_ERROR_STOP=1 si ferma al primo errore; l'editor continua.
+#   - Il log committato è leggibile via `git pull`: niente copia-incolla.
+#
+# COPIA in `.github/workflows/sql-ops.yml` del tuo repo, sostituisci i
+# <placeholder> (region, project-ref) e crea il file trigger `ops/run-sql.txt`
+# (esempio: `snippets/run-sql.txt.example`).
+#
+# PRECONDIZIONE — verifica che il `.gitignore` del repo NON ingoi
+# `sql/ops/out/`: serve l'eccezione `!sql/ops/out/` dopo l'eventuale `*.log`.
+# Controlla con `git check-ignore -v sql/ops/out/test.log` prima di fidartene.
+# Vedi PLAYBOOK §35 "Trappole silenziose".
+#
+# SECRET GitHub richiesti (Settings → Secrets and variables → Actions):
+#   SUPABASE_DB_PASSWORD — SOLO la password (anche con caratteri speciali).
+#   NON url-encodarla: viene passata come PGPASSWORD (env separato), non
+#   dentro un URL.
+
+name: SQL ops (run + log)
+
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        description: "File SQL da eseguire (path nel repo, es. sql/ops/sizes.sql)"
+        type: string
+        default: sql/ops/sizes.sql
+  # Trigger per l'agente AI: il file `ops/run-sql.txt` contiene il path
+  # dello script da eseguire. L'agente scrive il path e pusha → il workflow
+  # parte in autonomia (senza permesso di triggerare workflow manualmente).
+  # Il PM usa invece il dispatch manuale dalla UI Actions.
+  # IMPORTANTE: il trigger scatta SOLO se `ops/run-sql.txt` CAMBIA contenuto.
+  # Per ri-eseguire lo stesso script: aggiungi un timestamp / commento.
+  push:
+    paths:
+      - "ops/run-sql.txt"
+
+permissions:
+  contents: write          # serve per l'auto-commit del log
+
+concurrency:
+  group: sql-ops
+  cancel-in-progress: false   # mai cancellare un'op in corsa: potrebbe essere a metà
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: main }
+
+      - name: Esegui SQL e cattura output
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          # Session Pooler IPv4, porta 5432. NON usare:
+          #   - Transaction Pooler (porta 6543): blocca VACUUM, SET, cursori
+          #   - Direct IPv6: spesso irraggiungibile dal runner GitHub
+          # Format host: aws-1-<region>.pooler.supabase.com
+          PGHOST: aws-1-<region>.pooler.supabase.com
+          PGPORT: "5432"
+          # Format user: postgres.<project-ref>
+          PGUSER: postgres.<project-ref>
+          PGDATABASE: postgres
+          SCRIPT_INPUT: ${{ inputs.script }}
+        run: |
+          set +e
+          # Selezione script: dispatch input > trigger-file > default sicuro
+          SCRIPT="${SCRIPT_INPUT}"
+          if [ -z "$SCRIPT" ] && [ -f ops/run-sql.txt ]; then
+            SCRIPT="$(tr -d ' \n\r' < ops/run-sql.txt)"
+          fi
+          [ -z "$SCRIPT" ] && SCRIPT="sql/ops/sizes.sql"
+
+          mkdir -p sql/ops/out
+          OUT="sql/ops/out/$(date -u +%Y%m%dT%H%M%SZ).log"
+          {
+            echo "# run+log @ $(date -u +%Y%m%dT%H%M%SZ) UTC"
+            echo "# script: ${SCRIPT}"
+            echo "----------------------------------------"
+          } > "$OUT"
+
+          # Check esplicito del secret: meglio un messaggio chiaro nel log
+          # che un "FATAL: password authentication failed" criptico da psql.
+          if [ -z "$PGPASSWORD" ]; then
+            echo "ERRORE: secret SUPABASE_DB_PASSWORD mancante o vuoto." >> "$OUT"
+          else
+            # -v ON_ERROR_STOP=1: si ferma al primo errore SQL. Senza questo,
+            # psql continua dopo un errore → metà migrazione applicata in
+            # silenzio, exit code 0, job verde, disastro.
+            # NO --single-transaction: VACUUM e CREATE INDEX CONCURRENTLY
+            # non possono girare dentro una transazione.
+            psql -v ON_ERROR_STOP=1 -f "$SCRIPT" >> "$OUT" 2>&1
+            echo "----------------------------------------" >> "$OUT"
+            echo "# exit_code: $?" >> "$OUT"
+          fi
+          cat "$OUT"
+
+      - name: Auto-commit del log
+        if: always()        # committa il log anche se psql fallisce
+        run: |
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@users.noreply.github.com"
+          git add sql/ops/out/
+          git commit -m "chore(db-log): query output [skip ci]" || { echo "nulla da committare"; exit 0; }
+          # pull --rebase + retry: se main è avanzato durante il job, il push
+          # finale verrebbe rifiutato. NON committare su main mentre questo
+          # job gira.
+          for n in 1 2 3; do
+            git pull --rebase --autostash origin main && git push origin main && break
+            echo "push retry $n"; sleep 3
+          done

@@ -2,6 +2,21 @@
 
 ## Non rilasciato (post-v1.2)
 
+- `snippets/sql-ops-workflow.yml` (nuovo) — workflow per eseguire script
+  SQL su Postgres/Supabase via `psql` + auto-commit del log in `sql/ops/out/`.
+  **Doppio trigger**: `workflow_dispatch` per il PM + trigger-file
+  `ops/run-sql.txt` per l'agente AI (selezione script a cascata:
+  dispatch input → trigger-file → default).
+- `snippets/run-sql.txt.example` (nuovo) — file trigger d'esempio.
+- PLAYBOOK §35 Esempio A esteso con 3 nuovi gotcha vissuti sul campo:
+  pattern doppio trigger, `ON_ERROR_STOP=1` obbligatorio (senza, metà
+  migrazione applicata in silenzio), check esplicito `PGPASSWORD` vuoto.
+- PLAYBOOK §35 — nuova sottosezione "Trigger-file: gotcha comune ai
+  pattern Esempio A e B": `on: push: paths` scatta solo se il contenuto
+  CAMBIA davvero; per ri-eseguire serve timestamp/commento variabile.
+- Promozione dal repo KB (`REGOLE.md` workflow di promozione progetto-vivo
+  → kit), completa il trittico ops: scaffold generico + deploy MCP + SQL ops.
+
 - `snippets/mcp-deploy-workflow.yml` (nuovo) — workflow auto-deploy del
   Worker MCP via `wrangler` + auto-commit del log + smoke-test DB opzionale.
   Pattern **trigger-file** (`mcp-server/deploy.trigger`) invece di

@@ -1,0 +1,14 @@
+# Trigger del workflow `sql-ops` via GitHub Actions.
+#
+# Copia questo file in `ops/run-sql.txt` del tuo repo. Scrivi sotto il path
+# dello script SQL da eseguire (relativo alla root del repo), poi committa
+# e pusha: il workflow `.github/workflows/sql-ops.yml` parte da solo e
+# auto-committa l'output in `sql/ops/out/`.
+#
+# Vedi `snippets/sql-ops-workflow.yml` + PLAYBOOK §35 Esempio A.
+#
+# IMPORTANTE: il trigger scatta SOLO se il contenuto di questo file CAMBIA
+# davvero. Per ri-eseguire lo stesso script, aggiungi un commento con
+# timestamp o cambia un carattere.
+
+sql/ops/sizes.sql
