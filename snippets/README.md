@@ -14,6 +14,8 @@ nel tuo `index.html` (o equivalente) e adattare ai nomi delle tue entità.
 | `ops-auto-commit-workflow.yml` | Scheletro GitHub Actions: esegue un'op cloud (psql, wrangler…) e auto-committa il log nel repo | §35 |
 | `selftest-autolog.yml` | Workflow usa-e-getta per verificare end-to-end la catena auto-commit prima di usarla davvero | §35 |
 | `mcp-deploy-workflow.yml` | Auto-deploy del Worker MCP via wrangler con trigger-file (`mcp-server/deploy.trigger`) + auto-commit log + smoke-test DB opzionale | §35 Esempio B |
+| `sql-ops-workflow.yml` | Esegue uno script SQL su Postgres/Supabase via psql + auto-commit del log in `sql/ops/out/`. Doppio trigger: `workflow_dispatch` (PM) + trigger-file `ops/run-sql.txt` (agente AI) | §35 Esempio A |
+| `run-sql.txt.example` | File trigger d'esempio per `sql-ops-workflow.yml` — copia in `ops/run-sql.txt` del tuo repo | §35 Esempio A |
 
 ## Come usarli
 

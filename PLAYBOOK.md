@@ -1615,6 +1615,9 @@ password/token/chiavi sono segreti.
 
 ### Esempio A — SQL su Postgres/Supabase via `psql`
 
+Workflow YAML pronto da copiare: **`snippets/sql-ops-workflow.yml`** + file
+trigger di esempio in `snippets/run-sql.txt.example`. Caveat consolidati:
+
 - Secret: `SUPABASE_DB_PASSWORD` (solo la password; host/user/db nel workflow).
 - Connessione: **Session Pooler IPv4, porta 5432** (il transaction pooler
   6543 NON fa girare `VACUUM`; la direct IPv6 spesso non è raggiungibile
@@ -1625,6 +1628,32 @@ password/token/chiavi sono segreti.
   `VACUUM` e `CREATE INDEX CONCURRENTLY` non girano in transazione.
 - Lo script SQL è un **file versionato** nel repo (es. `sql/ops/*.sql`),
   non testo incollato. Riusabile, rivedibile, diff-abile.
+- **Pattern doppio trigger**: `workflow_dispatch` (con `inputs.script`) per
+  il PM dalla UI Actions + `on: push: paths: [ops/run-sql.txt]` per
+  l'agente AI. L'agente scrive il path nel trigger-file e pusha, il
+  workflow legge `ops/run-sql.txt` ed esegue. Stesso vantaggio
+  dell'Esempio B: l'AI deploya/runna **senza permesso di triggerare
+  workflow manualmente**.
+- **`-v ON_ERROR_STOP=1` obbligatorio.** Senza, psql ignora gli errori SQL
+  e continua → **metà migrazione applicata in silenzio**, exit code 0,
+  job verde, disastro. Sintomo: un `ALTER TABLE` fallisce ma i successivi
+  girano, il DB resta in stato inconsistente. Sempre `-v ON_ERROR_STOP=1`
+  + `set +e` prima per catturare l'exit code nel log.
+- **Check esplicito `PGPASSWORD` vuoto.** Se il secret è mancante (typo
+  nel nome o non settato), Actions sostituisce con stringa vuota **senza
+  warning** e psql risponde `FATAL: password authentication failed` →
+  perdi tempo a credere che la password sia sbagliata. Fix: `if [ -z
+  "$PGPASSWORD" ]` prima di chiamare psql, con messaggio chiaro nel log.
+
+### Trigger-file: gotcha comune ai pattern Esempio A e B
+
+Sintomo: ri-scrivi il path nel trigger-file, committi, pushi — **nessun
+run parte**. Causa: `on: push: paths` scatta solo se il contenuto cambia
+davvero. Se rimetti la stessa riga (o un trailing newline identico), git
+non vede un diff. Fix: aggiungi un commento col timestamp ad ogni run, o
+strippa i whitespace prima del confronto (`tr -d ' \n\r'` come fa lo
+scaffold). Vale per `mcp-server/deploy.trigger` (Esempio B) e
+`ops/run-sql.txt` (Esempio A).
 
 ### Esempio B — Deploy Cloudflare Worker via `wrangler`
 
@@ -1916,6 +1945,7 @@ progetto col piede giusto.
 > | §31 bootHarness | `snippets/bootHarness.mjs` |
 > | §35 ops Actions + auto-commit | `snippets/ops-auto-commit-workflow.yml` + `snippets/selftest-autolog.yml` |
 > | §35 Esempio B (deploy MCP) | `snippets/mcp-deploy-workflow.yml` + `mcp-template/deploy.trigger` |
+> | §35 Esempio A (SQL ops) | `snippets/sql-ops-workflow.yml` + `snippets/run-sql.txt.example` |
 
 ## 25. `markDirty` + `saveNow` + `isPlaceholder`
 
