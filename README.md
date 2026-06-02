@@ -18,6 +18,9 @@ PLAYBOOK.md         Metodologia, stack di default, pattern Nove C. Il documento
                     "Costituzione": leggilo per intero a inizio progetto.
 AGENT_BOOTSTRAP.md  Lettera al Claude della prima sessione. Da copiare come
                     CLAUDE.md nel nuovo progetto e personalizzare.
+EXAMPLES.md         Pattern ❌/✅ code-level: diff veri "cosa fare / NON fare"
+                    sui pattern chiave (surgical changes, anti-overengineering,
+                    test-first, tecnica "3 interpretazioni con stima").
 REGOLE.md           Regole di igiene di QUESTO repo pubblico (mai secret, mai
                     nomi cliente). Da leggere prima di ogni PR sul kit.
 templates/          Skeleton dei doc "vivi" da copiare nel nuovo progetto
@@ -87,6 +90,22 @@ per chi ha già copiato.
 
 Vedi [REGOLE.md](REGOLE.md). TL;DR: questo è un repo **pubblico**, MAI
 secret, MAI nomi cliente, MAI schema dominio-specifico. Triple-check ogni PR.
+
+## Crediti
+
+`EXAMPLES.md` e alcuni framing in `AGENT_BOOTSTRAP.md` / `PLAYBOOK.md`
+sono ispirati e in parte citati verbatim dalla skill open-source
+[`andrej-karpathy-skills`](https://github.com/multica-ai/andrej-karpathy-skills)
+di multica-ai (MIT). In particolare il **formato** ❌/✅ con diff, il
+test *"every changed line should trace directly to the user's request"*,
+la frase *"Good code is code that solves today's problem simply, not
+tomorrow's problem prematurely"* e la tecnica delle "3 interpretazioni
+con stima" (adattata da *EXAMPLES "Make the search faster"*). Non
+abbiamo importato i 4 principi come sezioni a sé: 3 di 4 erano già nel
+kit con framing Nove-C-specifico, e 1 ("ask when uncertain" generico)
+avrebbe conflittato con la nostra §36 "Profilo del PM". Vedi
+`EXAMPLES.md` per la spiegazione completa di cosa abbiamo adottato e
+cosa no.
 
 ## Licenza
 
