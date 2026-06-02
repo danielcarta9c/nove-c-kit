@@ -2,6 +2,31 @@
 
 ## Non rilasciato (post-v1.2)
 
+- **`EXAMPLES.md` (nuovo, root)** — 4 esempi code-level ❌/✅ con diff veri:
+  Surgical Changes (fix realtime senza drive-by refactor + logging senza
+  style drift), Simplicity First (no Strategy pattern per 1 backend),
+  Goal-Driven (bug-hunt con Playwright test che riproduce PRIMA del fix),
+  e la tecnica "3 interpretazioni con stima" per quando chiedere al PM è
+  necessario. Ispirato/adattato dalla skill open-source
+  `andrej-karpathy-skills` (MIT). Non importati i 4 principi come sezioni
+  separate: 3 di 4 già coperti dal kit, 1 (ask when uncertain generico)
+  conflittava con §36; risolto dalla tecnica "3 interpretazioni".
+- AGENT_BOOTSTRAP — nuova regola #15 **"Surgical changes"** col test di
+  Karpathy verbatim. Titolo "le 14" → "le 15".
+- PLAYBOOK §13 (anti-overengineering) — adottata la frase di Karpathy
+  *"Good code is code that solves today's problem simply, not tomorrow's
+  problem prematurely"* come chiusura del punto 4, con attribuzione e
+  rimando a `EXAMPLES.md` §2.
+- PLAYBOOK §11 (anti-pattern) — nuova riga **"Drive-by refactor / scope
+  creep"**: fix di un bug + cambi adiacenti non richiesti (JSDoc,
+  TypeScript, stile, refactor di codice che funziona).
+- PLAYBOOK §32.1 — nuova **tecnica "3 interpretazioni con stima"** per
+  quando l'ambiguità è di prodotto (scope/costo/UX) e §36 non vieta di
+  chiedere. Risolve la tensione apparente fra "non chiedere il come" e
+  "ask when uncertain".
+- README — nuova sezione **Crediti** con attribuzione esplicita a
+  multica-ai/andrej-karpathy-skills.
+
 - PLAYBOOK §12 inventario — **n8n dismesso** (a pagamento, cancellato a
   mag 2026). L'unico flow attivo (redattore SEO che pubblica sul blog di
   `nove-c.com`) è stato migrato con successo su GitHub Actions: conferma

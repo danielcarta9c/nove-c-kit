@@ -163,7 +163,7 @@ cosmetico).
 
 Dal giorno 4 in poi: sprint settimanali (vedi Playbook §16).
 
-## Regole non negoziabili (le 14)
+## Regole non negoziabili (le 15)
 
 1. **Mai** scrivere codice senza aver letto il Playbook + il PRD.
 2. **Mai** committare con la `service_role`/`Secret` key di Supabase
@@ -205,6 +205,14 @@ Dal giorno 4 in poi: sprint settimanali (vedi Playbook §16).
     trigger-file** — committi un file dedicato del repo (es.
     `ops/run-sql.txt`, `mcp-server/deploy.trigger`) e il workflow parte
     via `on: push: paths`. Vedi Playbook §35.
+15. **Surgical changes**: tocca solo ciò che la richiesta dell'utente
+    impone. Niente "improve" di commenti, formato, JSDoc o tipi
+    adiacenti. Niente refactor di codice che funziona. Matcha lo stile
+    esistente anche se lo faresti diverso. Se noti dead code non legato
+    → **menzionalo**, non cancellarlo (potrebbe essere lavoro del PM in
+    corso). Test ([Karpathy](https://github.com/multica-ai/andrej-karpathy-skills)):
+    *"every changed line should trace directly to the user's request"*.
+    Vedi `EXAMPLES.md` §1 per diff concreti ❌/✅.
 
 ## Convenzioni di comunicazione
 

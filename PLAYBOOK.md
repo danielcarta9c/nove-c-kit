@@ -750,6 +750,7 @@ Non rifare questi, ognuno ci è costato almeno mezza giornata:
 | `git push` del bot ops mentre `main` avanza durante il job | `! [rejected] fetch first`, log persi, nessun log nel repo nonostante il workflow sia girato | Nello step di commit: `git pull --rebase --autostash` + retry 3x prima del push. + regola di condotta: non committare su `main` durante un job lungo. Vedi §35 |
 | Cache di operazioni costose (OCR, embedding) keyed sull'`eTag` di Microsoft Graph | `eTag` cambia anche solo spostando il file → OCR/embedding rifatti **ogni notte** sui contenuti invariati, costo a pagamento per nulla | Usa il segnale "contenuto cambiato" (Graph `cTag`, hash del binario) come chiave di cache, non identificatori di metadato. Vedi §3d |
 | Agente AI tenta di triggerare un workflow GitHub Actions via API dispatch → **HTTP 403** → cerca altri token/endpoint invece di cambiare strategia | Sessione persa in workaround che non possono funzionare (il sandbox blocca `workflow_dispatch`, non è un problema di auth) | **Pattern trigger-file**: committa un file dedicato (`ops/run-sql.txt`, `mcp-server/deploy.trigger`) → il workflow parte via `on: push: paths`. È il modo Nove C standard di lanciare workflow da agente. Vedi §35 |
+| **Drive-by refactor / scope creep**: mentre fixi un bug, riformatti il codice adiacente, aggiungi JSDoc/TypeScript, cambi stile (quote, async/await), "migliori" cose non rotte | Diff illeggibili, regressioni casuali, sessioni di review che esplodono di scope, il PM non capisce più cosa hai cambiato per il bug | Test ([Karpathy](https://github.com/multica-ai/andrej-karpathy-skills)): *"every changed line should trace directly to the user's request"*. Matcha lo stile esistente anche se lo faresti diverso. Vedi `EXAMPLES.md` §1 + AGENT_BOOTSTRAP regola #15 |
 
 ---
 
@@ -1011,7 +1012,10 @@ Quattro principi, in ordine di importanza:
 4. **Anti-overengineering.** Non si aggiunge un livello d'astrazione,
    un framework, una libreria, un microservizio per "potenziali esigenze
    future". Si aggiunge quando il dolore presente è chiaro e quantificato.
-   Tre righe duplicate sono meglio di un'astrazione prematura.
+   Tre righe duplicate sono meglio di un'astrazione prematura. → Vedi
+   `EXAMPLES.md` §2 per il diff concreto. *"Good code is code that solves
+   today's problem simply, not tomorrow's problem prematurely"*
+   ([Karpathy guidelines](https://github.com/multica-ai/andrej-karpathy-skills)).
 
 ## 14. Setup di un nuovo progetto (giorno 1-3)
 
@@ -1405,6 +1409,21 @@ ti corregge **prima** di darti l'info nuova.
 fonte unica. I doc raccontano lo stato del codice; la chat racconta lo
 stato del momento. Quando divergono, **la chat batte i doc** (e segnala
 che i doc vanno aggiornati).
+
+**Quando devi davvero chiedere — tecnica "3 interpretazioni con stima".**
+Se l'ambiguità è genuinamente di **prodotto** (scope, costo, UX) e §36
+non te lo vieta, NON chiedere a domanda aperta (*"intendi X?"* → silenzio
+→ confusione). Presenta invece **2-3 interpretazioni concrete con stima
+oraria/costo e vincoli noti**. Daniel decide in 30 secondi senza dover
+ricostruire il contesto tecnico. Esempio completo + diff: `EXAMPLES.md`
+§4. Tecnica adattata da
+[Karpathy guidelines](https://github.com/multica-ai/andrej-karpathy-skills)
+(*EXAMPLES "Make the search faster"*).
+
+> Limite: questa tecnica vale per ambiguità di **prodotto**. Per il "come"
+> tecnico (encoding, algoritmo, lato di un conflitto su codice) → §36
+> rule 4: decidi da senior, niente domande, dichiara *"ho scelto X perché
+> Y, alternativa scartata Z"*.
 
 ### 32.2 Doc del repo ≠ source of truth per stato operativo cloud
 
