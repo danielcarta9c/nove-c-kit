@@ -965,11 +965,15 @@ Cosa Nove C ha già attivo. **Pesalo prima di proporre dipendenze nuove**
   (WordPress). Sottodomini disponibili per progetti pubblici (es.
   `app.nove-c.com`).
 
-**Basso utilizzo (NON costruirci sopra pattern nuovi)**:
-- **n8n** (paid) — workflow automation. Oggi 1 solo flow attivo: redattore
-  SEO che pubblica sul blog di `nove-c.com`. Possibile dismissione futura;
-  se serve si riattiva. Prima di proporre soluzioni n8n-based, conferma
-  col PM.
+**Valutati e dismessi (riattivabili se servono di nuovo)**:
+- **n8n** (paid) — dismesso a maggio 2026. Era usato per workflow
+  automation; l'unico flow attivo (redattore SEO che pubblica sul blog
+  di `nove-c.com`) è stato **migrato con successo su GitHub Actions** —
+  conferma sul campo che per casi semplici di automation il trittico ops
+  Actions (§35) è sufficiente, niente bisogno di un orchestratore esterno
+  a pagamento. Riattivabile se emerge un caso d'uso che Actions non copre
+  bene (es. UI no-code per il PM, integrazioni native con SaaS non
+  esposti via API REST).
 
 > Per lo stato operativo PRECISO di un singolo progetto (quale URL
 > Supabase, quale Worker, quali secret) → `PROJECT_STATE.md` "Ambienti

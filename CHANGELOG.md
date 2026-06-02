@@ -2,6 +2,14 @@
 
 ## Non rilasciato (post-v1.2)
 
+- PLAYBOOK §12 inventario — **n8n dismesso** (a pagamento, cancellato a
+  mag 2026). L'unico flow attivo (redattore SEO che pubblica sul blog di
+  `nove-c.com`) è stato migrato con successo su GitHub Actions: conferma
+  sul campo che per workflow automation semplici il trittico ops Actions
+  (§35) è sufficiente, niente orchestratore esterno a pagamento.
+  Riattivabile se serve. Spostato dalla sezione "Basso utilizzo" alla
+  nuova "Valutati e dismessi".
+
 - PLAYBOOK §35 — nuova sottosezione **"Lanciare un workflow da agente AI
   senza permesso di dispatch (pattern trigger-file)"** prima degli Esempi
   A e B, con sintomo concreto (HTTP 403 → loop di workaround), causa
