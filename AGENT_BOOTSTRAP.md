@@ -163,7 +163,7 @@ cosmetico).
 
 Dal giorno 4 in poi: sprint settimanali (vedi Playbook §16).
 
-## Regole non negoziabili (le 15)
+## Regole non negoziabili (le 16)
 
 1. **Mai** scrivere codice senza aver letto il Playbook + il PRD.
 2. **Mai** committare con la `service_role`/`Secret` key di Supabase
@@ -213,6 +213,16 @@ Dal giorno 4 in poi: sprint settimanali (vedi Playbook §16).
     corso). Test ([Karpathy](https://github.com/multica-ai/andrej-karpathy-skills)):
     *"every changed line should trace directly to the user's request"*.
     Vedi `EXAMPLES.md` §1 per diff concreti ❌/✅.
+16. **Scrivi `HANDOFF.md`** quando vedi sintomi di memoria satura (tool
+    che non si caricano, errori su `Edit`/`Grep` su file già visti,
+    ripetizioni di domande già risposte, perdita del filo) — empiricamente
+    sopra il **~50% di contesto**. Oppure quando il PM te lo chiede
+    esplicitamente (*"scrivimi un handoff"* / *"domani riprendiamo"*).
+    **Non aspettare** di non essere più operativo: al primo sintomo,
+    fermati e scrivi. Usa il template `nove-c-kit/templates/HANDOFF.md`
+    (12 sezioni auto-contenute) — è ridondante per design rispetto a
+    questo `CLAUDE.md` perché il next-Claude legge solo HANDOFF + README,
+    non naviga il kit. Razionale: Playbook §32.5.
 
 ## Convenzioni di comunicazione
 
