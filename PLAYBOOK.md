@@ -1476,8 +1476,8 @@ caricano, errori su `Edit`/`Grep` su file già visti, ripetizioni di
 domande già risposte, perdita del filo logico fra due risposte adiacenti.
 A quel punto **non iniziare nuovi blocchi di lavoro**: consegna e fermati.
 
-**Non aspettare** di non essere più operativo per scrivere HANDOFF — al
-primo sintomo, fermati e scrivi. Se aspetti, finisci a scrivere un
+**Non aspettare** di non essere più operativo per scrivere `HANDOFF.md` —
+al primo sintomo, fermati e scrivi. Se aspetti, finisci a scrivere un
 documento sciatto proprio quando ti serve preciso.
 
 **Due trigger per scrivere `HANDOFF.md`**:
@@ -1485,57 +1485,98 @@ documento sciatto proprio quando ti serve preciso.
 2. **Richiesta esplicita del PM**: *"scrivimi un handoff"* / *"passaggio
    di consegna"* / *"domani riprendiamo"*.
 
-### 32.5.1 Principio meta — perché l'HANDOFF è "intenzionalmente ridondante"
+### 32.5.1 Principio meta — HANDOFF è un CANCELLO di lettura, non un riassunto
 
-Per design il prossimo Claude **leggerà solo `HANDOFF.md` + `README.md` +
-`CLAUDE.md`** — NON navigherà il PLAYBOOK del kit, NON aprirà gli ADR, NON
-leggerà i singoli snippet. Quindi `HANDOFF.md`:
+⚠️ **Errore da evitare**: scrivere `HANDOFF.md` come "riassunto
+auto-contenuto" che il next-Claude possa leggere **al posto** di tutto il
+resto. È tentante perché si è osservato che molti Claude in sessione
+nuova leggono solo HANDOFF + README + CLAUDE.md e partono a lavorare.
+Codificare questa abitudine però **cristallizza il pattern sbagliato**:
+il next-Claude parte senza il contesto vero del progetto, rifa errori già
+fatti, non sa **perché** certe scelte sono come sono.
 
-- **DEVE ripetere** sintetizzandole le parti operative che servono
-  (profilo PM, regole hard, comandi di smoke-test, automazione, pattern
-  codice critici). Anche se quelle cose vivono anche in `CLAUDE.md` (=
-  `AGENT_BOOTSTRAP` personalizzato) o nel kit.
-- **NON è un riassunto della sessione precedente**: è un **bootstrap
-  auto-contenuto** che porta il next-Claude operativo in 5 minuti senza
-  navigazione.
+**`HANDOFF.md` è un CANCELLO DI LETTURA**, non un sostituto. Il suo job:
 
-Questa ridondanza **non è un bug di hygiene**, è feature: il pubblico
-target (Claude in nuova sessione) ha pattern di lettura molto stretti.
+- **Imporre l'ordine** di lettura dei doc del progetto + del kit (PRIMO
+  step di ogni nuova sessione).
+- **Verificare** con sentinel checks che il next-Claude abbia il contesto
+  prima di toccare codice.
+- **Trasmettere il delta** che non è ancora nei doc canonici (decisioni
+  recenti, task in-flight, quirks emersi).
+- **Puntare** ai luoghi dove vivono le cose, **NON ripeterne il
+  contenuto**.
 
-### 32.5.2 Le 12 sezioni del template
+Tutto il sapere del progetto deve restare nei suoi luoghi canonici:
+profilo PM in `CLAUDE.md` (= `AGENT_BOOTSTRAP` personalizzato), metodologia
+nel PLAYBOOK del kit (+ eventuale playbook di progetto), decisioni
+strutturali in `docs/adr/`, pattern codice in `EXAMPLES.md` del kit e
+nei file del progetto. `HANDOFF.md` non li sostituisce: li **orchestra**.
 
-Template completo in **`nove-c-kit/templates/HANDOFF.md`**. Sintesi:
+> Se ti accorgi che `HANDOFF.md` sta diventando "lungo abbastanza da
+> sostituire la lettura degli altri doc", **stai sbagliando**: il
+> next-Claude userà quella scorciatoia e tu avrai codificato il bug. Sii
+> spietato a tenerlo magro.
 
-1. **Cosa fare nei primi 60 secondi** — sanity check git + servizi vivi
-2. **Cos'è il progetto** — stack, dominio, vocabolario
-3. **Stato attuale** — versione live, backlog, recenti (sezione più VIVA)
-4. **Infrastruttura & account** — repo, hosting, DB, MCP, secrets
-5. **Profilo del PM** — sintesi di §36 specifica del PM corrente
-6. **Metodologia operativa** — versioning, backlog, git, test, automazione,
-   code anti-pattern, quirks
-7. **Sezione operativa** — come fare le cose comuni (bug/feature/SQL/deploy/notte/release)
-8. **Pattern di codice critici di QUESTO progetto** (i trasversali Nove C → Parte E del kit)
-9. **Storia & decisioni chiave** — mini-ADR cronologici
-10. **Quirks** — cose contro-intuitive che farebbero perdere ore
-11. **Riferimenti incrociati** — cosa leggere per approfondire (incluso il kit)
-12. **Cosa NON fare mai** — regole hard del progetto + cross-ref con regole non
-    negoziabili del kit
+### 32.5.2 Sentinel checks — il cancello vero
 
-### 32.5.3 Manutenzione
+Il template include una sezione "Sentinel checks": 5 domande a cui il
+next-Claude deve saper rispondere **prima di toccare codice**. Se non sa
+rispondere, deve tornare a leggere. È il meccanismo concreto che impedisce
+di partire ciechi.
 
-`HANDOFF.md` non si scrive una volta sola: **si evolve**. Ogni sessione
-che chiude un lavoro sostanziale aggiorna almeno:
-- **§3** (stato attuale)
-- **§9** (storia, se ci sono decisioni nuove)
-- una riga in "Ultimo aggiornamento" in fondo
+Esempi tipici di sentinel:
+- *"Come comunica il PM e cosa NON gli si chiede mai?"*
+- *"Qual è il pattern trigger-file e quando si usa?"*
+- *"Quali sono le 3 regole hard più pericolose di questo progetto, e
+  perché esistono?"*
 
-Non riscrivere a freddo, **evolvi**. Quando una decisione del §9 diventa
-strutturale, promuovila ad ADR formale in `docs/adr/` e togli/snellisci
-la voce in §9. Quando un quirk del §10 diventa banale (perché tutti lo
-sanno o è stato risolto), tieni la riga ma marcala risolta.
+Il PM (o il Claude stesso) può chiedere le sentinel come prima cosa della
+sessione. Se le risposte sono vaghe, "torna a leggere" è la risposta
+corretta — non "iniziamo lo stesso".
 
-`HANDOFF.md` va referenziato come **prima lettura** nel `CLAUDE.md` (sopra
-al `PROJECT_STATE.md`) finché il PM lo "consuma" e fa repulisti.
+### 32.5.3 Le 9 sezioni del template
+
+Template completo in **`nove-c-kit/templates/HANDOFF.md`**:
+
+1. **Reading order obbligatorio** — la tabella che impone l'ordine di
+   lettura (`CLAUDE.md`, `README.md`, backlog, `ARCHITECTURE.md`, ADR,
+   PLAYBOOK del kit, EXAMPLES, MCP README, e SOLO DOPO il §2 di questo
+   file).
+2. **Sentinel checks** — 5 domande, le risposte stanno nei doc puntati al §1.
+3. **Stato attuale** — versione live, in-flight, bloccato (sezione VIVA).
+4. **Cosa è cambiato dall'ultima sessione (delta)** — solo roba non
+   ancora promossa ad ADR / al PLAYBOOK del progetto.
+5. **In-flight task** — branch, ultimo commit, dove sei rimasto, loci di
+   interesse (`file:riga`), stato test. **Asciutto.**
+6. **Decisioni di questa sessione (mini-ADR)** — promuovibili ad ADR
+   formale quando maturano (e a quel punto qui resta una riga col link).
+7. **Quirks emersi** — solo se NON già nel kit / negli ADR del progetto.
+   Se trovi un quirk già documentato lì, **non duplicarlo**, punta.
+8. **Cross-refs** — tabella di rimandi (*"dove cerco quando..."*), non di
+   contenuto.
+9. **Domande aperte per il PM** — con la tecnica "3 interpretazioni con
+   stima" (§32.1, EXAMPLES §4) quando l'ambiguità è di prodotto.
+
+### 32.5.4 Manutenzione
+
+`HANDOFF.md` **si evolve, non si riscrive**. A ogni merge significativo
+aggiorna almeno §3 (stato), §4 (delta), §5 (in-flight se è cambiato).
+
+**Quando le sezioni si gonfiano è il segnale che del contenuto va
+promosso fuori**: §6 (mini-ADR) → `docs/adr/000N-*.md` quando una
+decisione diventa strutturale; §7 (quirks) → kit (via `REGOLE.md`
+"Workflow di promozione") quando un quirk è trasversale; §4 (delta) → al
+PLAYBOOK del progetto / aggiornamento di `CLAUDE.md` quando smette di
+essere "delta" e diventa "stato".
+
+Quando una voce viene promossa altrove, **togli o snellisci** quella in
+HANDOFF (lascia 1 riga col link al posto di copia-incollare). Magro è
+meglio di pieno: un HANDOFF pieno è un HANDOFF che il next-Claude userà
+come scorciatoia per non leggere il resto, **vanificando il principio
+meta** (§32.5.1).
+
+`HANDOFF.md` va referenziato come **prima lettura** nel `CLAUDE.md`
+finché il PM lo "consuma" e fa repulisti.
 
 ---
 
