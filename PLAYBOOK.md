@@ -1468,30 +1468,74 @@ Worker Cloudflare · Repo GitHub) con tutti i fatti operativi.
 > non lo sai?". Fix: questa sezione + la sezione "Ambienti live" in
 > `PROJECT_STATE.md`. Vedi commit del 23 maggio 2026 nel Done log.
 
-### 32.5 Handoff di fine sessione (quando il contesto si satura)
+### 32.5 Handoff di fine sessione
 
-**Sintomi di contesto saturo**: tool che improvvisamente non si caricano
-più, errori su operazioni semplici (un `Edit` che fallisce su un file già
-letto, una grep che salta righe), ripetizioni di domande già risposte,
-perdita del filo logico fra due risposte adiacenti. A quel punto **non
-iniziare nuovi blocchi di lavoro**: consegna e fermati.
+**Il problema osservato**: oltre il **~50% di contesto saturo** le
+prestazioni di Claude degradano sensibilmente — sintomi: tool che non si
+caricano, errori su `Edit`/`Grep` su file già visti, ripetizioni di
+domande già risposte, perdita del filo logico fra due risposte adiacenti.
+A quel punto **non iniziare nuovi blocchi di lavoro**: consegna e fermati.
 
-**Il deliverable**: un file `HANDOFF.md` nel repo (template in
-`nove-c-kit/templates/HANDOFF.md`) con quattro sezioni:
-1. **Stato attuale** — 3-5 righe: dove siamo arrivati, cosa funziona, cosa
-   no.
-2. **Lavori aperti** — col dettaglio tecnico necessario per riprenderli:
-   cosa serve fare, dove vive nel codice, cosa NON è ancora stato fatto e
-   perché.
-3. **Cosa NON rifare** — insidie e strade morte già esplorate. Salva
-   tempo al prossimo Claude (o al PM stesso quando rilegge).
-4. **Profilo del PM residuo** — cosa abbiamo imparato in questa sessione
-   che vale per le prossime: lessico, preferenze, soglie di autonomia
-   confermate o riviste (vedi §36).
+**Non aspettare** di non essere più operativo per scrivere HANDOFF — al
+primo sintomo, fermati e scrivi. Se aspetti, finisci a scrivere un
+documento sciatto proprio quando ti serve preciso.
+
+**Due trigger per scrivere `HANDOFF.md`**:
+1. **Sintomi di contesto saturo** (vedi sopra) — autonomamente.
+2. **Richiesta esplicita del PM**: *"scrivimi un handoff"* / *"passaggio
+   di consegna"* / *"domani riprendiamo"*.
+
+### 32.5.1 Principio meta — perché l'HANDOFF è "intenzionalmente ridondante"
+
+Per design il prossimo Claude **leggerà solo `HANDOFF.md` + `README.md` +
+`CLAUDE.md`** — NON navigherà il PLAYBOOK del kit, NON aprirà gli ADR, NON
+leggerà i singoli snippet. Quindi `HANDOFF.md`:
+
+- **DEVE ripetere** sintetizzandole le parti operative che servono
+  (profilo PM, regole hard, comandi di smoke-test, automazione, pattern
+  codice critici). Anche se quelle cose vivono anche in `CLAUDE.md` (=
+  `AGENT_BOOTSTRAP` personalizzato) o nel kit.
+- **NON è un riassunto della sessione precedente**: è un **bootstrap
+  auto-contenuto** che porta il next-Claude operativo in 5 minuti senza
+  navigazione.
+
+Questa ridondanza **non è un bug di hygiene**, è feature: il pubblico
+target (Claude in nuova sessione) ha pattern di lettura molto stretti.
+
+### 32.5.2 Le 12 sezioni del template
+
+Template completo in **`nove-c-kit/templates/HANDOFF.md`**. Sintesi:
+
+1. **Cosa fare nei primi 60 secondi** — sanity check git + servizi vivi
+2. **Cos'è il progetto** — stack, dominio, vocabolario
+3. **Stato attuale** — versione live, backlog, recenti (sezione più VIVA)
+4. **Infrastruttura & account** — repo, hosting, DB, MCP, secrets
+5. **Profilo del PM** — sintesi di §36 specifica del PM corrente
+6. **Metodologia operativa** — versioning, backlog, git, test, automazione,
+   code anti-pattern, quirks
+7. **Sezione operativa** — come fare le cose comuni (bug/feature/SQL/deploy/notte/release)
+8. **Pattern di codice critici di QUESTO progetto** (i trasversali Nove C → Parte E del kit)
+9. **Storia & decisioni chiave** — mini-ADR cronologici
+10. **Quirks** — cose contro-intuitive che farebbero perdere ore
+11. **Riferimenti incrociati** — cosa leggere per approfondire (incluso il kit)
+12. **Cosa NON fare mai** — regole hard del progetto + cross-ref con regole non
+    negoziabili del kit
+
+### 32.5.3 Manutenzione
+
+`HANDOFF.md` non si scrive una volta sola: **si evolve**. Ogni sessione
+che chiude un lavoro sostanziale aggiorna almeno:
+- **§3** (stato attuale)
+- **§9** (storia, se ci sono decisioni nuove)
+- una riga in "Ultimo aggiornamento" in fondo
+
+Non riscrivere a freddo, **evolvi**. Quando una decisione del §9 diventa
+strutturale, promuovila ad ADR formale in `docs/adr/` e togli/snellisci
+la voce in §9. Quando un quirk del §10 diventa banale (perché tutti lo
+sanno o è stato risolto), tieni la riga ma marcala risolta.
 
 `HANDOFF.md` va referenziato come **prima lettura** nel `CLAUDE.md` (sopra
-al `PROJECT_STATE.md`) finché il PM o il nuovo Claude lo "consumano" e
-fanno repulisti.
+al `PROJECT_STATE.md`) finché il PM lo "consuma" e fa repulisti.
 
 ---
 
