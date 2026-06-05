@@ -213,16 +213,20 @@ Dal giorno 4 in poi: sprint settimanali (vedi Playbook §16).
     corso). Test ([Karpathy](https://github.com/multica-ai/andrej-karpathy-skills)):
     *"every changed line should trace directly to the user's request"*.
     Vedi `EXAMPLES.md` §1 per diff concreti ❌/✅.
-16. **Scrivi `HANDOFF.md`** quando vedi sintomi di memoria satura (tool
-    che non si caricano, errori su `Edit`/`Grep` su file già visti,
-    ripetizioni di domande già risposte, perdita del filo) — empiricamente
-    sopra il **~50% di contesto**. Oppure quando il PM te lo chiede
-    esplicitamente (*"scrivimi un handoff"* / *"domani riprendiamo"*).
-    **Non aspettare** di non essere più operativo: al primo sintomo,
-    fermati e scrivi. Usa il template `nove-c-kit/templates/HANDOFF.md`
-    (12 sezioni auto-contenute) — è ridondante per design rispetto a
-    questo `CLAUDE.md` perché il next-Claude legge solo HANDOFF + README,
-    non naviga il kit. Razionale: Playbook §32.5.
+16. **`HANDOFF.md` è un CANCELLO di lettura, non un riassunto** — sia
+    quando lo scrivi sia quando lo leggi.
+    **Quando lo scrivi**: appena vedi sintomi di memoria satura (tool che
+    non caricano, errori su `Edit`/`Grep` su file già visti, ripetizioni,
+    perdita del filo — empiricamente sopra il ~50% di contesto) o quando
+    il PM te lo chiede (*"scrivimi un handoff"*). Usa il template
+    `nove-c-kit/templates/HANDOFF.md` (9 sezioni). **Non riempire HANDOFF
+    di contenuto duplicato**: punta ai doc, non li riscrivere — altrimenti
+    il next-Claude lo userà come scorciatoia e partirà cieco.
+    **Quando lo leggi (sessione nuova)**: segui il `Reading order
+    obbligatorio` (§1 del template), leggi davvero tutti i doc puntati
+    (kit + progetto + ADR), e rispondi alle **Sentinel checks** (§2)
+    PRIMA di toccare codice. Se non sai rispondere a una sentinel, torna
+    a leggere. Razionale: Playbook §32.5.
 
 ## Convenzioni di comunicazione
 

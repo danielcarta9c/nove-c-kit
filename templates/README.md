@@ -9,7 +9,7 @@ specifica del progetto e non hanno uno scheletro che valga la pena committare.
 |------|--------------|----------------------|
 | `PROJECT_STATE.md` | `PROJECT_STATE.md` (root del nuovo repo) | §16 + §32 |
 | `adr-template.md` | `docs/adr/000N-<slug>.md` | §18 |
-| `HANDOFF.md` | `HANDOFF.md` (root del repo, a fine sessione satura o quando il PM lo chiede). 12 sezioni auto-contenute: portano il next-Claude operativo in 5 minuti senza navigare PLAYBOOK/ADR | §32.5 |
+| `HANDOFF.md` | `HANDOFF.md` (root del repo, a fine sessione satura o quando il PM lo chiede). **Cancello di lettura**, non riassunto: 9 sezioni che impongono l'ordine di lettura di tutti i doc + sentinel checks che bloccano Claude se parte senza contesto | §32.5 |
 
 > Il template di `CLAUDE.md` non sta qui: è `AGENT_BOOTSTRAP.md` nella root del
 > kit (la "lettera al Claude della prima sessione", da copiare e personalizzare).

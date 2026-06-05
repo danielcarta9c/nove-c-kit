@@ -2,24 +2,19 @@
 
 ## Non rilasciato (post-v1.2)
 
-- **`templates/HANDOFF.md` riscritto** — da 4 a **12 sezioni** modellate
-  su un handoff reale collaudato in produzione. Auto-contenuto per design:
-  porta il next-Claude operativo in 5 minuti senza navigare PLAYBOOK/ADR.
-  Include §1 sanity checks 60 secondi, §2 cos'è il progetto, §3 stato
-  attuale, §4 infra + secrets, §5 profilo PM, §6 metodologia, §7 cose
-  comuni, §8 pattern codice, §9 storia, §10 quirks, §11 refs, §12 cosa
-  NON fare. Ogni sezione con guidance inline e `<placeholder>` da
-  compilare.
-- **PLAYBOOK §32.5 espansa** — soglia operativa ~50% di contesto saturo,
-  due trigger (sintomi + richiesta esplicita), regola "non aspettare di
-  non essere più operativo", **principio meta** sulla "ridondanza
-  intenzionale" (il next-Claude legge solo HANDOFF + README + CLAUDE.md,
-  non naviga il kit), mappa delle 12 sezioni, regole di manutenzione
-  (evolvi, non riscrivere a freddo).
-- **AGENT_BOOTSTRAP regola #16 (nuova)** — "Scrivi `HANDOFF.md` quando
-  vedi sintomi di memoria satura o il PM te lo chiede". Titolo "15" → "16".
-- `templates/README.md` — riga HANDOFF aggiornata per riflettere la nuova
-  struttura.
+- **HANDOFF design INVERTITO** — l'iterazione precedente (12 sezioni
+  auto-contenute, "next-Claude legge solo HANDOFF") codificava il
+  comportamento osservato sbagliato. Ora `HANDOFF.md` è un **CANCELLO
+  DI LETTURA**, non un riassunto: 9 sezioni che impongono l'ordine di
+  lettura di tutti i doc del progetto + kit, sentinel checks che
+  bloccano Claude se parte senza contesto, e SOLO il delta della
+  sessione (in-flight, decisioni recenti, quirks emersi). Le sezioni
+  "duplicate" della v2 (profilo PM, metodologia, regole hard, pattern
+  codice) **rimosse** dal template: vivono nei loro luoghi canonici
+  (CLAUDE.md, PLAYBOOK, ADR, EXAMPLES.md). PLAYBOOK §32.5 riscritta col
+  nuovo principio meta. AGENT_BOOTSTRAP regola #16 riformulata per
+  coprire sia scrittura sia lettura ("segui il reading order, rispondi
+  alle sentinel prima di toccare codice").
 
 - **`EXAMPLES.md` (nuovo, root)** — 4 esempi code-level ❌/✅ con diff veri:
   Surgical Changes (fix realtime senza drive-by refactor + logging senza
