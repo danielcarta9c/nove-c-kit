@@ -751,6 +751,7 @@ Non rifare questi, ognuno ci è costato almeno mezza giornata:
 | Cache di operazioni costose (OCR, embedding) keyed sull'`eTag` di Microsoft Graph | `eTag` cambia anche solo spostando il file → OCR/embedding rifatti **ogni notte** sui contenuti invariati, costo a pagamento per nulla | Usa il segnale "contenuto cambiato" (Graph `cTag`, hash del binario) come chiave di cache, non identificatori di metadato. Vedi §3d |
 | Agente AI tenta di triggerare un workflow GitHub Actions via API dispatch → **HTTP 403** → cerca altri token/endpoint invece di cambiare strategia | Sessione persa in workaround che non possono funzionare (il sandbox blocca `workflow_dispatch`, non è un problema di auth) | **Pattern trigger-file**: committa un file dedicato (`ops/run-sql.txt`, `mcp-server/deploy.trigger`) → il workflow parte via `on: push: paths`. È il modo Nove C standard di lanciare workflow da agente. Vedi §35 |
 | **Drive-by refactor / scope creep**: mentre fixi un bug, riformatti il codice adiacente, aggiungi JSDoc/TypeScript, cambi stile (quote, async/await), "migliori" cose non rotte | Diff illeggibili, regressioni casuali, sessioni di review che esplodono di scope, il PM non capisce più cosa hai cambiato per il bug | Test ([Karpathy](https://github.com/multica-ai/andrej-karpathy-skills)): *"every changed line should trace directly to the user's request"*. Matcha lo stile esistente anche se lo faresti diverso. Vedi `EXAMPLES.md` §1 + AGENT_BOOTSTRAP regola #15 |
+| **KV OAuth condiviso fra Worker diversi**: setti due MCP Worker con lo stesso namespace KV (`OAUTH_KV`) per "risparmiare" | Gli utenti già collegati al primo Worker perdono il consenso quando deployi il secondo (la lib OAuth mischia i grant) — sembra un bug, è un effetto della condivisione | Ogni Worker ha il SUO namespace (es. `<nome-progetto>-oauth`); il binding interno resta `OAUTH_KV`. Vedi §35 Esempio B + `mcp-template/wrangler.toml` |
 
 ---
 
@@ -1889,6 +1890,17 @@ trigger di esempio in `mcp-template/deploy.trigger`. Caveat consolidati:
   deploy va a buon fine ma i tool rispondono "server non configurato".
   Causa: i secret del Worker non sono mai stati settati con `wrangler
   secret put`. Fix: settarli UNA volta a mano prima del primo deploy.
+- **`account_id` esplicito quando l'auto-detect fallisce.** Sintomo:
+  `Failed to retrieve account IDs` durante `wrangler deploy` (succede con
+  account multipli o token a scope ridotti). Fix: nel `wrangler.toml`
+  decommenta `account_id = "<id>"` per rendere il deploy deterministico.
+- **KV OAuth DEDICATO per progetto, mai condiviso.** Sintomo: utenti
+  OAuth già collegati a un Worker perdono il consenso quando deployi un
+  secondo Worker che riusa lo stesso namespace KV. Causa: la lib OAuth
+  legge i grant per binding name, ma se due Worker leggono dallo stesso
+  storage KV, mischiano i grant. Fix: ogni Worker ha il SUO namespace
+  (es. `<nome-progetto>-oauth`), binding interno `OAUTH_KV` (lo legge la
+  lib). Vedi anti-pattern §11.
 
 ### Trappole silenziose (il workflow "funziona" ma non lascia traccia)
 

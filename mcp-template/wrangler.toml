@@ -8,14 +8,35 @@ main = "worker.mjs"
 compatibility_date = "2025-09-01"
 compatibility_flags = ["nodejs_compat"]
 
+# account_id: NORMALMENTE wrangler lo auto-detecta dal login. Se ottieni
+# "Failed to retrieve account IDs" (succede quando hai piu' account o un
+# token a scope ridotti), decommentalo e mettilo qui esplicito.
+# account_id = "<your-account-id>"
+
 # Storage per OAuth provider (client registrati, access/refresh tokens, grants).
 # Crea il namespace una sola volta con:
-#   npx wrangler kv namespace create OAUTH_KV
+#   npx wrangler kv namespace create <nome-progetto>-oauth
 # Wrangler aggiorna automaticamente questo file con l'id ricevuto. Se non lo fa,
 # copia manualmente l'id qui sotto.
+#
+# ⚠️ REGOLA: KV OAuth DEDICATO per progetto. Mai riusare lo stesso namespace
+# fra Worker diversi — mischierebbe i grant degli utenti OAuth gia' collegati.
+# Il binding resta `OAUTH_KV` (lo legge la libreria), ma il NOME del namespace
+# va project-specifico (sopra: `<nome-progetto>-oauth`).
 [[kv_namespaces]]
 binding = "OAUTH_KV"
 id = "PLACEHOLDER_KV_NAMESPACE_ID"
 
+# Esempio R2 (backend "object store" alternativo al Supabase REST della
+# variante default). Decommenta solo se il tuo MCP espone un vault di file
+# (es. Markdown, documenti, allegati). Vedi `client-factory-r2.example.mjs`.
+# R2 e' un BINDING, non un secret: non serve `wrangler secret put`.
+#
+# [[r2_buckets]]
+# binding = "VAULT"
+# bucket_name = "<nome-progetto>-vault"
+# # preview_bucket_name = "<nome-progetto>-vault-preview"  # opzionale per dev
+
 [observability]
 enabled = true
+
