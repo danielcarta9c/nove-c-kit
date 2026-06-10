@@ -13,6 +13,32 @@ Claude.ai  ──HTTPS──>  Cloudflare Worker  ──HTTPS──>  Supabase (
                        └── /mcp: JSON-RPC dispatcher
 ```
 
+## Scegliere il backend: Supabase REST vs R2 (object store)
+
+Il template fornisce due varianti di factory client. **Scegline una sola** e
+rinomina in `client.mjs`.
+
+| Caratteristica | Supabase REST (default) | Cloudflare R2 |
+|---|---|---|
+| File factory | `client-factory.example.mjs` | `client-factory-r2.example.mjs` |
+| Modello dati | Tabelle relazionali (Postgres) | Oggetti per chiave (no schema) |
+| Auth | Sì (RLS server-side, service_role per MCP) | No (sicurezza solo a livello Worker) |
+| Realtime | Sì (Supabase Realtime) | No |
+| Query / filtri | SQL-like via PostgREST | `list(prefix)` + iterazione client |
+| Full-text search | RLS-aware via SQL | Iterazione manuale (costoso, vedi cap nel file) |
+| Config | Secrets `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` | Binding `[[r2_buckets]]` nel `wrangler.toml` (nessun secret) |
+| Quando sceglierlo | CRM, scadenzari, app con entità relazionali e RLS multi-tenant | Vault di file (Markdown, PDF), archivio documenti, cache statica condivisa |
+
+**Esempi**: il pattern Supabase REST è quello nato dallo Scadenzario (CRM
+Nove C, audit log, RLS multi-tenant). Il pattern R2 è nato esponendo un
+**vault di file Markdown** (es. Obsidian) come tool MCP — quando ti serve
+"leggi/scrivi file" più che "query relazionale".
+
+> Quando usi R2: il `worker.mjs` del template è scritto per Supabase. Devi
+> adattare il check degli env (R2 è un binding, non un secret → non servono
+> `SUPABASE_URL`/`SUPABASE_SERVICE_KEY`, basta `MCP_AUTH_TOKEN`) e
+> sostituire l'import della factory.
+
 ## File del template
 
 | File | Cosa fa | Da modificare? |
@@ -20,7 +46,8 @@ Claude.ai  ──HTTPS──>  Cloudflare Worker  ──HTTPS──>  Supabase (
 | `worker.mjs` | Entry point Cloudflare Worker (OAuth + routing /mcp + /authorize) | Solo la palette/testi della pagina `/authorize` |
 | `mcp-dispatcher.mjs` | JSON-RPC handler condiviso stdio + HTTP | Solo il `name` in `SERVER_INFO` |
 | `index.mjs` | Runner stdio per dev locale (Claude Desktop) | Niente |
-| `client-factory.example.mjs` | Pattern factory client (rinomina in `client.mjs`) | **Sì**: implementa i tuoi metodi REST |
+| `client-factory.example.mjs` | Pattern factory client per backend **Supabase REST** (default) — rinomina in `client.mjs` | **Sì**: implementa i tuoi metodi REST |
+| `client-factory-r2.example.mjs` | Variante factory client per backend **Cloudflare R2** (object store: vault Markdown, archivio file) — rinomina in `client.mjs` | **Sì**: alternativa al Supabase factory, vedi "Scegliere il backend" |
 | `tools.example.mjs` | Registry tool MCP (rinomina in `tools.mjs`) | **Sì**: aggiungi i tuoi tool |
 | `wrangler.toml` | Config Cloudflare Workers | `name` + l'id KV (auto-popolato da setup-mcp.ps1) |
 | `package.json` | Deps NPM | `name` + `description` |
@@ -116,6 +143,13 @@ Riavvia Claude Desktop dopo aver salvato.
 
 ## Auto-deploy via GitHub Actions
 
+> **Quando NON ti serve**: se il Worker è personale (un solo deploy alla
+> volta dal tuo PC, `wrangler login` già fatto), il **deploy diretto** è più
+> semplice: lancia `setup-mcp.ps1` (Windows) o `npx wrangler deploy` (mac/Linux)
+> e basta. Il pattern git + Actions sotto serve per **progetti condivisi**,
+> CI ripetibile, o per permettere all'agente AI di deployare senza tirare
+> in ballo la tua macchina locale.
+
 Per non re-deployare a mano ogni volta (e per permettere all'agente AI di
 deployare in autonomia senza permessi di `workflow_dispatch`), il template
 include il pattern **trigger-file + auto-commit log**. Razionale completo:
@@ -170,7 +204,39 @@ legge via `git pull` — zero copia-incolla.
   retrocompat di naming.
 - **Worker + KV separati per ogni progetto**: NON riusare l'`OAUTH_KV`
   di un altro progetto, anche se fosse lo stesso account Cloudflare.
-  Blast radius limitato in caso di key rotation o bug.
+  Mischierebbe i grant OAuth degli utenti gia' collegati ai due Worker.
+  Usa un nome di namespace project-specifico (es. `<nome-progetto>-oauth`);
+  il binding interno resta `OAUTH_KV` perche' lo legge la lib.
+- **`account_id` esplicito quando l'auto-detect fallisce**: se vedi
+  `"Failed to retrieve account IDs"` (account multipli o token a scope
+  ridotti), decommenta `account_id = "<your-account-id>"` nel
+  `wrangler.toml`. Vedi anche PLAYBOOK §35 Esempio B.
+
+### Gotcha specifici Windows / PowerShell
+
+- **`node_modules` dentro OneDrive** (e progetti dentro cartelle
+  sincronizzate): npm > v7 cancella le directory junction a ogni
+  `install`, e OneDrive Files On-Demand tratta i file come reparse point
+  che si rompono in modi sottili. Soluzione robusta:
+  1. `npm install` normalmente nella cartella del progetto.
+  2. **Sposta** `node_modules` fuori da OneDrive con `robocopy /MOVE`.
+  3. Crea una **directory junction** da `<progetto>/node_modules` →
+     `<percorso-fuori-onedrive>/node_modules`. **Il target DEVE terminare
+     in `node_modules`**: Node usa il realpath e cerca cartelle chiamate
+     `node_modules` risalendo l'albero. Se la junction punta a
+     `<percorso>/deps`, Node fallisce con `Cannot find module 'esbuild'`.
+  4. Verifica con `(Get-Item .\node_modules).Target` — non basta
+     `ReparsePoint`, perche' anche i file On-Demand di OneDrive lo sono.
+- **`wrangler secret put` su PowerShell aggiunge `\r\n` se piped**:
+  `"token" | wrangler secret put NAME` salva un valore che NON combacia
+  col token pulito (es. nel consenso OAuth). Usa il metodo file senza
+  newline:
+  ```powershell
+  $f = New-TemporaryFile
+  [IO.File]::WriteAllText($f, $tok, (New-Object System.Text.UTF8Encoding($false)))
+  cmd /c "npx wrangler secret put NAME < `"$f`""
+  Remove-Item $f
+  ```
 
 ## Quando i tool diventano molti
 

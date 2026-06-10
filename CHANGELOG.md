@@ -2,6 +2,33 @@
 
 ## Non rilasciato (post-v1.2)
 
+- **`mcp-template/client-factory-r2.example.mjs` (nuovo)** — variante
+  factory client per backend **Cloudflare R2** (object store) accanto al
+  default Supabase REST. Metodi: `list` paginato, `get/head`, `put`,
+  `delete`, `search` full-text con cap a 50 + flag `truncated` (R2 non ha
+  indici, costoso), `createFolder` come placeholder. Caso d'uso: vault di
+  file Markdown / archivio documenti esposti come tool MCP.
+- **`mcp-template/wrangler.toml`** — aggiunto `account_id` esplicito
+  commentato (per quando l'auto-detect fallisce) + `[[r2_buckets]]`
+  commentato + regola esplicita "KV OAuth dedicato per progetto, mai
+  condividere".
+- **`mcp-template/README.md`**:
+  - Nuova sezione "Scegliere il backend: Supabase REST vs R2" con
+    tabella comparativa + casi d'uso.
+  - Nota in "Auto-deploy via GitHub Actions": **quando NON ti serve**
+    (Worker personale + wrangler già loggato → deploy diretto è più
+    semplice).
+  - Nuovi gotcha: `account_id` esplicito + KV OAuth dedicato.
+  - Nuova sottosezione "Gotcha specifici Windows / PowerShell":
+    `node_modules` dentro OneDrive (junction con target che DEVE
+    terminare in `node_modules`, gestione npm v7+ che cancella le
+    junction), `wrangler secret put` su PowerShell che aggiunge `\r\n`
+    quando piped (file senza newline come fix).
+- **PLAYBOOK §35 Esempio B** — due nuovi gotcha: `account_id` esplicito
+  + KV OAuth dedicato per progetto (rischio mix grant).
+- **PLAYBOOK §11 anti-pattern** — nuova riga "KV OAuth condiviso fra
+  Worker diversi" → utenti OAuth perdono il consenso.
+
 - **HANDOFF design INVERTITO** — l'iterazione precedente (12 sezioni
   auto-contenute, "next-Claude legge solo HANDOFF") codificava il
   comportamento osservato sbagliato. Ora `HANDOFF.md` è un **CANCELLO
